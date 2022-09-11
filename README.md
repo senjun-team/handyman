@@ -20,10 +20,16 @@ go build .
 ./handyman
 ```
 
+Настроить симлинк на директорию с курсами:
+```bash
+sudo ln -s /home/your_user/senjun/courses/courses/ /etc/courses
+```
+
 Для разработки можно использовать такие IDE как VSCode, LiteIDE и другие.
+Иерархия директорий проекта соответствует [распространенным практикам go.](https://github.com/golang-standards/project-layout)
 
 ## Добавление модулей
-Чтобы добавить сторонний модуль в go-проект, достаточно просто импортировать его в нужном месте в коде, например:
+Чтобы добавить сторонний модуль в go-проект, достаточно сначала импортировать его в нужном месте в коде, например:
 ```go
 import "github.com/gorilla/mux"
 ```
@@ -32,3 +38,11 @@ import "github.com/gorilla/mux"
 ```bash
 go mod tidy
 ```
+
+## Апишки
+```bash
+curl -X POST \
+  -d '{"task_id":"python_chapter_0010_task_0010", "chapter_id":"python_chapter_0010", "solution_text":"err_service_unavailable = 503"}' \
+  "http://localhost:8080/run_task?user_id=mesozoic.drones"
+```
+
