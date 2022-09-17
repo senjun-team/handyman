@@ -11,11 +11,13 @@ cd handyman
 
 Собрать и запустить сервис в дебаг-сборке:
 ```bash
+cd cmd/handyman
 go run .
 ```
 
 Собрать и запустить сервис в релизной сборке:
 ```bash
+cd cmd/handyman
 go build .
 ./handyman
 ```
