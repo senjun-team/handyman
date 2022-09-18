@@ -33,6 +33,10 @@ func extractRunTaskOptions(r *http.Request) (Options, error) {
 		return Options{}, err
 	}
 
+	if len(opts.CourseId) == 0 {
+		return Options{}, errors.New("empty course id")
+	}
+
 	if len(opts.ChapterId) == 0 {
 		return Options{}, errors.New("empty chapter id")
 	}
@@ -46,6 +50,7 @@ func extractRunTaskOptions(r *http.Request) (Options, error) {
 	}
 
 	opts.containerType = GetContainerType(opts.ChapterId)
+
 	if len(opts.containerType) == 0 {
 		return Options{}, errors.New("Couldn't specify container for chapter " + opts.ChapterId)
 	}
@@ -155,6 +160,10 @@ func HandleRunTask(w http.ResponseWriter, r *http.Request) {
 
 	WP.Submit(func() {
 		UpdateTaskStatus(opts.userId, opts.TaskId, res.Status, userSourceCode)
+		needUpdateCourse := UpdateChapterStatus(opts.userId, opts.ChapterId, opts.TaskId, res.Status)
+		if needUpdateCourse {
+			UpdateCourseStatus(opts.userId, opts.CourseId, opts.ChapterId)
+		}
 	})
 
 	log.WithFields(log.Fields{

@@ -10,6 +10,7 @@ CREATE DATABASE senjun OWNER senjun;
 
 CREATE TYPE edu_material_status AS ENUM ('completed', 'in_progress', 'blocked');
 CREATE TYPE course_type AS ENUM('free', 'paid');
+CREATE TYPE sequence_type AS ENUM('first', 'last', 'regular');
 
 
 -- Tables & indices
@@ -22,6 +23,7 @@ CREATE TABLE users (
     name varchar,
     surname varchar
 );
+ALTER TABLE users OWNER TO senjun;
 
 
 CREATE TABLE courses (
@@ -29,21 +31,23 @@ CREATE TABLE courses (
     path_on_disk varchar NOT NULL,
     type course_type default 'free' NOT NULL
 );
-
+ALTER TABLE courses OWNER TO senjun;
 
 CREATE TABLE chapters (
     chapter_id varchar NOT NULL PRIMARY KEY,
     course_id varchar NOT NULL,
+    seq sequence_type NOT NULL default 'regular',
     CONSTRAINT fk_course_id FOREIGN KEY(course_id) REFERENCES courses(course_id)
 );
-
+ALTER TABLE chapters OWNER TO senjun;
 
 CREATE TABLE tasks (
     task_id varchar NOT NULL PRIMARY KEY,
     course_id varchar NOT NULL,
+    seq sequence_type NOT NULL default 'regular',
     CONSTRAINT fk_course_id FOREIGN KEY(course_id) REFERENCES courses(course_id)
 );
-
+ALTER TABLE tasks OWNER TO senjun;
 
 CREATE TABLE course_progress (
     user_id varchar NOT NULL,
@@ -54,7 +58,7 @@ CREATE TABLE course_progress (
 );
 CREATE UNIQUE INDEX CONCURRENTLY unique_user_course_id ON course_progress(user_id, course_id);
 ALTER TABLE course_progress ADD CONSTRAINT unique_user_course_id UNIQUE USING INDEX unique_user_course_id;
-
+ALTER TABLE course_progress OWNER TO senjun;
 
 CREATE TABLE chapter_progress (
     user_id varchar NOT NULL,
@@ -65,7 +69,7 @@ CREATE TABLE chapter_progress (
 );
 CREATE UNIQUE INDEX CONCURRENTLY unique_user_chapter_id ON chapter_progress(user_id, chapter_id);
 ALTER TABLE chapter_progress ADD CONSTRAINT unique_user_chapter_id UNIQUE USING INDEX unique_user_chapter_id;
-
+ALTER TABLE chapter_progress OWNER TO senjun;
 
 CREATE TABLE task_progress (
     user_id varchar NOT NULL,
@@ -78,7 +82,7 @@ CREATE TABLE task_progress (
 );
 CREATE UNIQUE INDEX CONCURRENTLY unique_user_task_id ON task_progress(user_id, task_id);
 ALTER TABLE task_progress ADD CONSTRAINT unique_user_task_id UNIQUE USING INDEX unique_user_task_id;
-
+ALTER TABLE task_progress OWNER TO senjun;
 
 -- FILL TABLES
 
@@ -92,3 +96,6 @@ VALUES('mesozoic.drones', 'fec790f175bef65ca00c3887fa85af51', false, 'Olga', 'Kh
 INSERT INTO tasks(task_id, course_id) VALUES('python_chapter_0010_task_0010', 'python');
 INSERT INTO tasks(task_id, course_id) VALUES('python_chapter_0010_task_0020', 'python');
 INSERT INTO tasks(task_id, course_id) VALUES('python_chapter_0010_task_0030', 'python');
+
+INSERT INTO chapters(chapter_id, course_id, seq) VALUES('python_chapter_0010', 'python', 'first');
+INSERT INTO chapters(chapter_id, course_id, seq) VALUES('python_chapter_0020', 'python', 'last');
