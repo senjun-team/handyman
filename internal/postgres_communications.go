@@ -2,10 +2,6 @@ package internal
 
 import (
 	"database/sql"
-	"encoding/json"
-	"errors"
-	"fmt"
-	"net/http"
 
 	"github.com/gammazero/workerpool"
 	_ "github.com/lib/pq"
@@ -38,56 +34,6 @@ func ConnectDb() *sql.DB {
 	}
 
 	return db
-}
-
-type updateChapterStatusParams struct {
-	userId    string
-	chapterId string
-	status    string
-}
-
-func extractUpdateChapterStatusParams(r *http.Request) (updateChapterStatusParams, error) {
-	urlParams := r.URL.Query()
-	var res updateChapterStatusParams
-
-	res.userId = urlParams.Get("user_id")
-
-	if len(res.userId) == 0 {
-		return updateChapterStatusParams{}, errors.New("invalid user id")
-	}
-
-	res.chapterId = urlParams.Get("chapter_id")
-
-	if len(res.chapterId) == 0 {
-		return updateChapterStatusParams{}, errors.New("invalid chapter id")
-	}
-
-	res.status = urlParams.Get("status")
-	if len(res.status) == 0 {
-		return updateChapterStatusParams{}, errors.New("invalid status")
-	}
-
-	return res, nil
-}
-
-func UpdateChapterStatus(w http.ResponseWriter, r *http.Request) {
-	w.WriteHeader(http.StatusOK)
-	w.Header().Set("Content-type", "application/json")
-	params, err := extractUpdateChapterStatusParams(r)
-	if err != nil {
-		body, _ := json.Marshal(map[string]string{
-			"error": fmt.Sprintf("Invalid request: %s", err),
-		})
-		w.Write(body)
-		return
-	}
-
-	log.WithFields(log.Fields{
-		"userId":    params.userId,
-		"chapterId": params.chapterId,
-		"status":    params.status,
-	}).Debug("Parsed url params")
-
 }
 
 // Returns postgres TYPE edu_material_status
@@ -127,4 +73,108 @@ func UpdateTaskStatus(userId string, taskId string, statusCode int, solutionText
 		"user_id": userId,
 		"task_id": taskId,
 	}).Info("Updated task status for user")
+}
+
+func getStatusBySeqType(seqType string) string {
+	if seqType == "last" {
+		return "completed"
+	}
+
+	return "in_progress"
+}
+
+func UpdateChapterStatus(userId string, chapterId string, taskId string, statusCode int) (needUpdateCourse bool) {
+	// If task is not solved correctly we don't need to update chapter status
+	if statusCode != 0 {
+		return false
+	}
+
+	var seqTypeTask string
+	row := DB.QueryRow("SELECT seq FROM tasks WHERE task_id = $1", taskId)
+
+	if err := row.Scan(&seqTypeTask); err != nil {
+		log.WithFields(log.Fields{
+			"user_id":  userId,
+			"task_id":  taskId,
+			"db_error": err.Error(),
+		}).Error("Couldn't get seq from tasks table")
+		return false
+	}
+
+	if seqTypeTask != "last" && seqTypeTask != "first" {
+		return false
+	}
+
+	const query = `
+		INSERT INTO chapter_progress(user_id, chapter_id, status) 
+		VALUES($1, $2, $3) 
+		ON CONFLICT ON CONSTRAINT unique_user_chapter_id 
+		DO UPDATE SET
+		status = EXCLUDED.status
+	`
+
+	chapterStatus := getStatusBySeqType(seqTypeTask)
+	_, err := DB.Exec(query, userId, chapterId, chapterStatus)
+	if err != nil {
+		log.WithFields(log.Fields{
+			"user_id":    userId,
+			"chapter_id": chapterId,
+			"db_error":   err.Error(),
+		}).Error("Couldn't update chapter status for user")
+		return
+	}
+
+	log.WithFields(log.Fields{
+		"user_id":    userId,
+		"chapter_id": chapterId,
+	}).Info("Updated chapter status for user")
+
+	return seqTypeTask == "last"
+}
+
+func UpdateCourseStatus(userId string, courseId string, chapterId string) {
+	log.WithFields(log.Fields{
+		"user_id":   userId,
+		"course_id": courseId,
+	}).Info("Checking for update for course")
+
+	var seqType string
+	row := DB.QueryRow("SELECT seq FROM chapters WHERE chapter_id = $1", chapterId)
+
+	if err := row.Scan(&seqType); err != nil {
+		log.WithFields(log.Fields{
+			"user_id":    userId,
+			"chapter_id": chapterId,
+			"db_error":   err.Error(),
+		}).Error("Couldn't get seq from chapters table")
+		return
+	}
+
+	if seqType != "last" && seqType != "first" {
+		return
+	}
+
+	const query = `
+		INSERT INTO course_progress(user_id, course_id, status) 
+		VALUES($1, $2, $3) 
+		ON CONFLICT ON CONSTRAINT unique_user_course_id 
+		DO UPDATE SET
+		status = EXCLUDED.status
+	`
+
+	courseStatus := getStatusBySeqType(seqType)
+	_, err := DB.Exec(query, userId, courseId, courseStatus)
+	if err != nil {
+		log.WithFields(log.Fields{
+			"user_id":   userId,
+			"course_id": courseId,
+			"db_error":  err.Error(),
+		}).Error("Couldn't update course status for user")
+		return
+	}
+
+	log.WithFields(log.Fields{
+		"user_id":   userId,
+		"course_id": courseId,
+	}).Info("Updated course status for user")
 }
