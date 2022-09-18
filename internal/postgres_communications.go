@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"net/http"
 
+	"github.com/gammazero/workerpool"
 	_ "github.com/lib/pq"
 	log "github.com/sirupsen/logrus"
 )
@@ -14,6 +15,8 @@ import (
 // An exported global variable to hold the database connection pool
 // Completely thread-safe and ok. Fear not, my friend
 var DB *sql.DB
+
+var WP *workerpool.WorkerPool
 
 const connStr = "postgresql://senjun:some_password@127.0.0.1:5432/senjun?sslmode=disable"
 

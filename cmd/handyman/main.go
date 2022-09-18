@@ -5,6 +5,7 @@ import (
 	"runtime"
 	"time"
 
+	"github.com/gammazero/workerpool"
 	log "github.com/sirupsen/logrus"
 
 	"github.com/gorilla/mux"
@@ -25,6 +26,8 @@ func main() {
 
 	internal.DB = internal.ConnectDb()
 	defer internal.DB.Close()
+
+	internal.WP = workerpool.New(2)
 
 	r := mux.NewRouter()
 	r.HandleFunc("/run_task", internal.HandleRunTask)

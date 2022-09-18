@@ -153,6 +153,11 @@ func HandleRunTask(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	WP.Submit(func() {
+		time.Sleep(8 * time.Second)
+		log.Info("DONE TASK IN POOL")
+	})
+
 	log.WithFields(log.Fields{
 		"status": res.Status,
 	}).Info("Successfully communicated watchman")
