@@ -3,6 +3,7 @@ package internal
 import (
 	"database/sql"
 	"encoding/json"
+	"fmt"
 	"net/http"
 	"path/filepath"
 
@@ -215,6 +216,53 @@ func GetCoursesForUser(userId string) CoursesForUser {
 	return courses
 }
 
+func GetCourseProgressForUser(courseId string, userId string) (string, error) {
+	query := `
+		SELECT status FROM course_progress WHERE course_id=$1 AND user_id=$2
+	`
+	var status string
+	rows, err := DB.Query(query, courseId, userId)
+	if err != nil {
+		return "", err
+	}
+
+	defer rows.Close()
+
+	for rows.Next() {
+		if err := rows.Scan(&status); err != nil {
+			log.WithFields(log.Fields{
+				"user_id":   userId,
+				"course_id": courseId,
+				"error":     err.Error(),
+			}).Info("Couldn't get status from course_progress table")
+			return "", err
+		}
+	}
+
+	return status, nil
+}
+
+func UpdateCourseProgressForUser(courseId string, status string, userId string) error {
+	const query = `
+		INSERT INTO course_progress(user_id, course_id, status) 
+		VALUES($1, $2, $3) 
+		ON CONFLICT ON CONSTRAINT unique_user_course_id
+		DO UPDATE SET 
+		status = EXCLUDED.status
+	`
+	_, err := DB.Exec(query, userId, courseId, status)
+	if err != nil {
+		log.WithFields(log.Fields{
+			"user_id":   userId,
+			"course_id": courseId,
+			"db_error":  err.Error(),
+		}).Error("Couldn't update course progress for user")
+		return err
+	}
+
+	return nil
+}
+
 func HandleGetCourses(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusOK)
 	w.Header().Set("Content-type", "application/json")
@@ -240,4 +288,85 @@ func HandleGetCourses(w http.ResponseWriter, r *http.Request) {
 	}).Info("Successfully got courses")
 
 	json.NewEncoder(w).Encode(courses)
+}
+
+func HandleUpdateCourseProgress(w http.ResponseWriter, r *http.Request) {
+	w.WriteHeader(http.StatusOK)
+	w.Header().Set("Content-type", "application/json")
+
+	opts, err := ParseOptions(r)
+	if err != nil {
+		body, _ := json.Marshal(map[string]string{
+			"error": fmt.Sprintf("Invalid request: %s", err),
+		})
+		w.Write(body)
+		return
+	}
+
+	if len(opts.Status) == 0 {
+		json.NewEncoder(w).Encode(map[string]string{
+			"error": "Course status is not set in request",
+		})
+		return
+	}
+
+	curStatus, err := GetCourseProgressForUser(opts.CourseId, opts.userId)
+	if err != nil {
+		log.WithFields(log.Fields{
+			"user_id":   opts.userId,
+			"course_id": opts.CourseId,
+			"error":     err.Error(),
+		}).Error("Couldn't get progress")
+
+		json.NewEncoder(w).Encode(map[string]string{
+			"error": "Couldn't get user progress on course",
+		})
+		return
+	}
+
+	if len(curStatus) == 0 && opts.Status == "completed" {
+		json.NewEncoder(w).Encode(map[string]string{
+			"error":         "Couldn't complete course which is not started",
+			"course_status": curStatus,
+		})
+		return
+	}
+
+	if len(curStatus) != 0 && curStatus != "blocked" && opts.Status == "in_progress" {
+		json.NewEncoder(w).Encode(map[string]string{
+			"error":         "Couldn't start course which is already started",
+			"course_status": curStatus,
+		})
+		return
+	}
+
+	if curStatus == opts.Status {
+		json.NewEncoder(w).Encode(map[string]string{
+			"error":         "Course is already in this status",
+			"course_status": curStatus,
+		})
+		return
+	}
+
+	err = UpdateCourseProgressForUser(opts.CourseId, opts.Status, opts.userId)
+	if err != nil {
+		log.WithFields(log.Fields{
+			"user_id":   opts.userId,
+			"course_id": opts.CourseId,
+			"status":    opts.Status,
+			"error":     err.Error(),
+		}).Error("Couldn't update user progress on course")
+
+		json.NewEncoder(w).Encode(map[string]string{
+			"error": "Couldn't update user progress on course",
+		})
+		return
+	}
+
+	json.NewEncoder(w).Encode(map[string]string{
+		"status": "ok",
+	})
+}
+
+func HandleGetChapters(w http.ResponseWriter, r *http.Request) {
 }

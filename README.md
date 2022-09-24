@@ -42,14 +42,21 @@ go mod tidy
 ```
 
 ## Апишки
+`/run_task` - запуск решения пользователя для задачи курса.
 ```bash
 curl -X POST \
   -d '{"task_id":"python_chapter_0010_task_0010", "chapter_id":"python_chapter_0010", "course_id":"python", "solution_text":"err_service_unavailable = 503"}' \
   "http://localhost:8080/run_task?user_id=mesozoic.drones"
 ```
 
+`/get_courses` - получение списка курсов с их характеристиками.
 ```bash
 curl  "http://localhost:8080/get_courses?user_id=mesozoic.drones"
+```
+
+`/update_course_progress` - обновление прогресса пользователя по курсу. Например, для кнопок "начать" и "завершить".
+```bash
+curl -X POST   -d '{"course_id":"rust", "status":"in_progress"}'   "http://localhost:8080/start_course?user_id=mesozoic.drones"
 ```
 
 ## Полезные SQL-запросы для отладки и разворачивания базы
