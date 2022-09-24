@@ -51,7 +51,7 @@ curl -X POST \
 
 `/get_courses` - получение списка курсов с их характеристиками.
 ```bash
-curl  "http://localhost:8080/get_courses?user_id=mesozoic.drones"
+curl -X POST   -d '{"status":"all"}'   "http://localhost:8080/get_courses?user_id=mesozoic.drones"
 ```
 
 `/update_course_progress` - обновление прогресса пользователя по курсу. Например, для кнопок "начать" и "завершить".

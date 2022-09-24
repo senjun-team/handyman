@@ -107,10 +107,6 @@ func InjectCodeToWrapper(taskId string, userCode string) (string, error) {
 	return strings.ReplaceAll(string(content), injectMarker, userCode), nil
 }
 
-type CoursesForUser struct {
-	Courses []CourseForUser `json:"courses"`
-}
-
 type CourseForUser struct {
 	CourseId        string `json:"course_id"`
 	CourseType      string `json:"type"`
@@ -119,10 +115,6 @@ type CourseForUser struct {
 	Title           string `json:"title"`
 	IconPath        string `json:"path_icon"`
 	DescriptionPath string `json:"path_description"`
-}
-
-type ChaptersForUser struct {
-	Chapters []ChapterForUser `json:"chapters"`
 }
 
 type ChapterForUser struct {
