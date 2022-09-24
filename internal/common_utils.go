@@ -120,3 +120,13 @@ type CourseForUser struct {
 	IconPath        string `json:"path_icon"`
 	DescriptionPath string `json:"path_description"`
 }
+
+type ChaptersForUser struct {
+	Chapters []ChapterForUser `json:"chapters"`
+}
+
+type ChapterForUser struct {
+	ChapterId string `json:"chapter_id"`
+	Status    string `json:"status"`
+	Title     string `json:"title"`
+}

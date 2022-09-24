@@ -160,10 +160,7 @@ func HandleRunTask(w http.ResponseWriter, r *http.Request) {
 
 	WP.Submit(func() {
 		UpdateTaskStatus(opts.userId, opts.TaskId, res.Status, userSourceCode)
-		needUpdateCourse := UpdateChapterStatus(opts.userId, opts.ChapterId, opts.TaskId, res.Status)
-		if needUpdateCourse {
-			UpdateCourseStatus(opts.userId, opts.CourseId, opts.ChapterId)
-		}
+		UpdateChapterStatus(opts.userId, opts.ChapterId, opts.TaskId, res.Status)
 	})
 
 	log.WithFields(log.Fields{

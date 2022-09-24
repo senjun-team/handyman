@@ -79,34 +79,53 @@ func UpdateTaskStatus(userId string, taskId string, statusCode int, solutionText
 	}).Info("Updated task status for user")
 }
 
-func getStatusBySeqType(seqType string) string {
-	if seqType == "last" {
-		return "completed"
-	}
-
-	return "in_progress"
-}
-
-func UpdateChapterStatus(userId string, chapterId string, taskId string, statusCode int) (needUpdateCourse bool) {
+func UpdateChapterStatus(userId string, chapterId string, taskId string, statusCode int) {
 	// If task is not solved correctly we don't need to update chapter status
 	if statusCode != 0 {
-		return false
+		return
 	}
+	const queryTasks = `
+		SELECT
+		(CASE WHEN task_progress.status IS NULL THEN 'not_started' ELSE task_progress.status::varchar(40) END)  
+		FROM tasks 
+		LEFT JOIN task_progress ON 
+		tasks.task_id = task_progress.task_id 
+		AND tasks.chapter_id= $1
+		AND task_progress.user_id = $2
+	`
 
-	var seqTypeTask string
-	row := DB.QueryRow("SELECT seq FROM tasks WHERE task_id = $1", taskId)
-
-	if err := row.Scan(&seqTypeTask); err != nil {
+	rows, err := DB.Query(queryTasks, chapterId, userId)
+	if err != nil {
 		log.WithFields(log.Fields{
-			"user_id":  userId,
-			"task_id":  taskId,
-			"db_error": err.Error(),
-		}).Error("Couldn't get seq from tasks table")
-		return false
+			"user_id":    userId,
+			"task_id":    taskId,
+			"chapter_id": chapterId,
+			"db_error":   err.Error(),
+		}).Error("Couldn't get tasks for chapter")
+		return
 	}
 
-	if seqTypeTask != "last" && seqTypeTask != "first" {
-		return false
+	defer rows.Close()
+
+	chapterStatus := "completed"
+
+	for rows.Next() {
+		var status string
+
+		if err := rows.Scan(&status); err != nil {
+			log.WithFields(log.Fields{
+				"user_id":    userId,
+				"task_id":    taskId,
+				"chapter_id": chapterId,
+				"error":      err.Error(),
+			}).Info("Couldn't parse row from tasks selection for user")
+			return
+		}
+
+		if status != "completed" {
+			chapterStatus = "in_progress"
+			break
+		}
 	}
 
 	const query = `
@@ -117,8 +136,7 @@ func UpdateChapterStatus(userId string, chapterId string, taskId string, statusC
 		status = EXCLUDED.status
 	`
 
-	chapterStatus := getStatusBySeqType(seqTypeTask)
-	_, err := DB.Exec(query, userId, chapterId, chapterStatus)
+	_, err = DB.Exec(query, userId, chapterId, chapterStatus)
 	if err != nil {
 		log.WithFields(log.Fields{
 			"user_id":    userId,
@@ -132,55 +150,6 @@ func UpdateChapterStatus(userId string, chapterId string, taskId string, statusC
 		"user_id":    userId,
 		"chapter_id": chapterId,
 	}).Info("Updated chapter status for user")
-
-	return seqTypeTask == "last"
-}
-
-func UpdateCourseStatus(userId string, courseId string, chapterId string) {
-	log.WithFields(log.Fields{
-		"user_id":   userId,
-		"course_id": courseId,
-	}).Info("Checking for update for course")
-
-	var seqType string
-	row := DB.QueryRow("SELECT seq FROM chapters WHERE chapter_id = $1", chapterId)
-
-	if err := row.Scan(&seqType); err != nil {
-		log.WithFields(log.Fields{
-			"user_id":    userId,
-			"chapter_id": chapterId,
-			"db_error":   err.Error(),
-		}).Error("Couldn't get seq from chapters table")
-		return
-	}
-
-	if seqType != "last" && seqType != "first" {
-		return
-	}
-
-	const query = `
-		INSERT INTO course_progress(user_id, course_id, status) 
-		VALUES($1, $2, $3) 
-		ON CONFLICT ON CONSTRAINT unique_user_course_id 
-		DO UPDATE SET
-		status = EXCLUDED.status
-	`
-
-	courseStatus := getStatusBySeqType(seqType)
-	_, err := DB.Exec(query, userId, courseId, courseStatus)
-	if err != nil {
-		log.WithFields(log.Fields{
-			"user_id":   userId,
-			"course_id": courseId,
-			"db_error":  err.Error(),
-		}).Error("Couldn't update course status for user")
-		return
-	}
-
-	log.WithFields(log.Fields{
-		"user_id":   userId,
-		"course_id": courseId,
-	}).Info("Updated course status for user")
 }
 
 func GetCoursesForUser(userId string) CoursesForUser {
@@ -214,6 +183,44 @@ func GetCoursesForUser(userId string) CoursesForUser {
 	}
 
 	return courses
+}
+
+func GetChaptersForUser(userId string, courseId string) ChaptersForUser {
+	query := `
+		SELECT
+		chapters.chapter_id, chapters.title, 
+		(CASE WHEN chapter_progress.status IS NULL THEN 'not_started' ELSE chapter_progress.status::varchar(40) END) as status
+		FROM chapters
+		LEFT JOIN chapter_progress ON
+		chapters.chapter_id = chapter_progress.chapter_id 
+		AND chapter_progress.user_id=$1
+		WHERE course_id=$2
+	`
+
+	rows, err := DB.Query(query, userId, courseId)
+	if err != nil {
+		return ChaptersForUser{}
+	}
+
+	defer rows.Close()
+
+	var chapters ChaptersForUser
+
+	for rows.Next() {
+		var chapter ChapterForUser
+
+		if err := rows.Scan(&chapter.ChapterId, &chapter.Title, &chapter.Status); err != nil {
+			log.WithFields(log.Fields{
+				"user_id": userId,
+				"error":   err.Error(),
+			}).Info("Couldn't parse row from chapters selection for user")
+			return ChaptersForUser{}
+		}
+
+		chapters.Chapters = append(chapters.Chapters, chapter)
+	}
+
+	return chapters
 }
 
 func GetCourseProgressForUser(courseId string, userId string) (string, error) {
@@ -369,4 +376,31 @@ func HandleUpdateCourseProgress(w http.ResponseWriter, r *http.Request) {
 }
 
 func HandleGetChapters(w http.ResponseWriter, r *http.Request) {
+	w.WriteHeader(http.StatusOK)
+	w.Header().Set("Content-type", "application/json")
+
+	opts, err := ParseOptions(r)
+	if err != nil {
+		body, _ := json.Marshal(map[string]string{
+			"error": fmt.Sprintf("Invalid request: %s", err),
+		})
+		w.Write(body)
+		return
+	}
+
+	if len(opts.userId) == 0 || len(opts.CourseId) == 0 {
+		json.NewEncoder(w).Encode(map[string]string{
+			"error": "Couldn't get user_id or course_id",
+		})
+		return
+	}
+
+	chapters := GetChaptersForUser(opts.userId, opts.CourseId)
+
+	log.WithFields(log.Fields{
+		"user_id":   opts.userId,
+		"course_id": opts.CourseId,
+	}).Info("Successfully got chapters")
+
+	json.NewEncoder(w).Encode(chapters)
 }
