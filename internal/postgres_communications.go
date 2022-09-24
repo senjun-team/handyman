@@ -152,21 +152,23 @@ func UpdateChapterStatus(userId string, chapterId string, taskId string, statusC
 	}).Info("Updated chapter status for user")
 }
 
-func GetCoursesForUser(userId string) CoursesForUser {
+func GetCoursesForUser(userId string) []CourseForUser {
 	query := `
 		SELECT courses.course_id, courses.path_on_disk, courses.type, courses.title,
 		(CASE WHEN course_progress.status IS NULL THEN 'not_started' ELSE course_progress.status::varchar(40) END) as status 
 		FROM courses LEFT JOIN course_progress 
 		ON course_progress.course_id = courses.course_id AND course_progress.user_id=$1
+		ORDER BY status, courses.course_id
 	`
+
 	rows, err := DB.Query(query, userId)
 	if err != nil {
-		return CoursesForUser{}
+		return []CourseForUser{}
 	}
 
 	defer rows.Close()
 
-	var courses CoursesForUser
+	courses := []CourseForUser{}
 
 	for rows.Next() {
 		var course CourseForUser
@@ -176,16 +178,51 @@ func GetCoursesForUser(userId string) CoursesForUser {
 				"user_id": userId,
 				"error":   err.Error(),
 			}).Info("Couldn't parse row from courses selection for user")
-			return CoursesForUser{}
+			return []CourseForUser{}
 		}
 
-		courses.Courses = append(courses.Courses, course)
+		courses = append(courses, course)
 	}
 
 	return courses
 }
 
-func GetChaptersForUser(userId string, courseId string) ChaptersForUser {
+func GetCoursesForUserByStatus(userId string, status string) []CourseForUser {
+	query := `
+		SELECT courses.course_id, courses.path_on_disk, courses.type, courses.title
+		FROM courses LEFT JOIN course_progress 
+		ON course_progress.course_id = courses.course_id AND course_progress.user_id=$1
+		WHERE status = $2
+		ORDER BY courses.course_id
+	`
+
+	rows, err := DB.Query(query, userId, status)
+	if err != nil {
+		return []CourseForUser{}
+	}
+
+	defer rows.Close()
+
+	courses := []CourseForUser{}
+
+	for rows.Next() {
+		var course CourseForUser
+
+		if err := rows.Scan(&course.CourseId, &course.Path, &course.CourseType, &course.Title); err != nil {
+			log.WithFields(log.Fields{
+				"user_id": userId,
+				"error":   err.Error(),
+			}).Info("Couldn't parse row from courses selection for user")
+			return []CourseForUser{}
+		}
+
+		courses = append(courses, course)
+	}
+
+	return courses
+}
+
+func GetChaptersForUser(userId string, courseId string) []ChapterForUser {
 	query := `
 		SELECT
 		chapters.chapter_id, chapters.title, 
@@ -199,12 +236,12 @@ func GetChaptersForUser(userId string, courseId string) ChaptersForUser {
 
 	rows, err := DB.Query(query, userId, courseId)
 	if err != nil {
-		return ChaptersForUser{}
+		return []ChapterForUser{}
 	}
 
 	defer rows.Close()
 
-	var chapters ChaptersForUser
+	chapters := []ChapterForUser{}
 
 	for rows.Next() {
 		var chapter ChapterForUser
@@ -214,10 +251,10 @@ func GetChaptersForUser(userId string, courseId string) ChaptersForUser {
 				"user_id": userId,
 				"error":   err.Error(),
 			}).Info("Couldn't parse row from chapters selection for user")
-			return ChaptersForUser{}
+			return []ChapterForUser{}
 		}
 
-		chapters.Chapters = append(chapters.Chapters, chapter)
+		chapters = append(chapters, chapter)
 	}
 
 	return chapters
@@ -274,24 +311,31 @@ func HandleGetCourses(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusOK)
 	w.Header().Set("Content-type", "application/json")
 
-	userId := GetUserId(r)
-	if len(userId) == 0 {
+	opts, err := ParseOptions(r)
+	if err != nil {
 		body, _ := json.Marshal(map[string]string{
-			"error": "Empty user id",
+			"error": fmt.Sprintf("Invalid request: %s", err),
 		})
 		w.Write(body)
 		return
 	}
 
-	courses := GetCoursesForUser(userId)
+	var courses []CourseForUser
 
-	for i := 0; i < len(courses.Courses); i++ {
-		courses.Courses[i].DescriptionPath = filepath.Join(courses.Courses[i].Path, "description.md")
-		courses.Courses[i].IconPath = filepath.Join(courses.Courses[i].Path, "icon.svg")
+	if opts.Status == "all" {
+		courses = GetCoursesForUser(opts.userId)
+	} else {
+		courses = GetCoursesForUserByStatus(opts.userId, opts.Status)
+	}
+
+	for i := 0; i < len(courses); i++ {
+		courses[i].DescriptionPath = filepath.Join(courses[i].Path, "description.md")
+		courses[i].IconPath = filepath.Join(courses[i].Path, "icon.svg")
 	}
 
 	log.WithFields(log.Fields{
-		"user_id": userId,
+		"user_id": opts.userId,
+		"status":  opts.Status,
 	}).Info("Successfully got courses")
 
 	json.NewEncoder(w).Encode(courses)
