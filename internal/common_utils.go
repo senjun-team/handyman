@@ -16,6 +16,7 @@ type Options struct {
 	ChapterId  string `json:"chapter_id,omitempty"`
 	TaskId     string `json:"task_id,omitempty"`
 	SourceCode string `json:"solution_text,omitempty"`
+	Status     string `json:"status,omitempty"`
 	// Must be extracted later not from HTTP POST body, but
 	// from header with JWT access token
 	userId string

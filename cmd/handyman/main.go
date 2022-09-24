@@ -34,6 +34,8 @@ func main() {
 	r := mux.NewRouter()
 	r.HandleFunc("/run_task", internal.HandleRunTask)
 	r.HandleFunc("/get_courses", internal.HandleGetCourses)
+	r.HandleFunc("/update_course_progress", internal.HandleUpdateCourseProgress)
+	r.HandleFunc("/get_chapters", internal.HandleGetChapters)
 
 	srv := &http.Server{
 		Handler:      r,
