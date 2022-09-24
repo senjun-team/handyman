@@ -59,6 +59,11 @@ curl  "http://localhost:8080/get_courses?user_id=mesozoic.drones"
 curl -X POST   -d '{"course_id":"rust", "status":"in_progress"}'   "http://localhost:8080/start_course?user_id=mesozoic.drones"
 ```
 
+`/get_chapters` - получение списка глав и их статусов для пользоваетля.
+```bash
+curl -X POST   -d '{"course_id":"python"}'   "http://localhost:8080/get_chapters?user_id=mesozoic.drones"
+```
+
 ## Полезные SQL-запросы для отладки и разворачивания базы
 ```
 -- show running queries

@@ -8,9 +8,8 @@ CREATE DATABASE senjun OWNER senjun;
 -- To connect to the created db:
 -- \c senjun
 
-CREATE TYPE edu_material_status AS ENUM ('completed', 'in_progress', 'blocked');
+CREATE TYPE edu_material_status AS ENUM ('in_progress', 'blocked', 'completed');
 CREATE TYPE course_type AS ENUM('free', 'paid');
-CREATE TYPE sequence_type AS ENUM('first', 'last', 'regular');
 
 
 -- Tables & indices
@@ -37,16 +36,15 @@ ALTER TABLE courses OWNER TO senjun;
 CREATE TABLE chapters (
     chapter_id varchar NOT NULL PRIMARY KEY,
     course_id varchar NOT NULL,
-    seq sequence_type NOT NULL default 'regular',
+    title varchar NOT NULL,
     CONSTRAINT fk_course_id FOREIGN KEY(course_id) REFERENCES courses(course_id)
 );
 ALTER TABLE chapters OWNER TO senjun;
 
 CREATE TABLE tasks (
     task_id varchar NOT NULL PRIMARY KEY,
-    course_id varchar NOT NULL,
-    seq sequence_type NOT NULL default 'regular',
-    CONSTRAINT fk_course_id FOREIGN KEY(course_id) REFERENCES courses(course_id)
+    chapter_id varchar NOT NULL,
+    CONSTRAINT fk_chapter_id FOREIGN KEY(chapter_id) REFERENCES chapters(chapter_id)
 );
 ALTER TABLE tasks OWNER TO senjun;
 
@@ -93,10 +91,14 @@ INSERT INTO courses(course_id, title, path_on_disk) VALUES('rust', 'Rust', '/cou
 INSERT INTO users(user_id, pass_hash, is_blocked, name, surname) 
 VALUES('mesozoic.drones', 'fec790f175bef65ca00c3887fa85af51', false, 'Olga', 'Khlopkova');
 
+INSERT INTO users(user_id, pass_hash, is_blocked, name, surname) 
+VALUES('perikrone', 'cad4b69b0a2ef573722fc6830fabeef6', false, 'Veseliy', 'Buldozer');
 
-INSERT INTO tasks(task_id, course_id) VALUES('python_chapter_0010_task_0010', 'python');
-INSERT INTO tasks(task_id, course_id) VALUES('python_chapter_0010_task_0020', 'python');
-INSERT INTO tasks(task_id, course_id) VALUES('python_chapter_0010_task_0030', 'python');
+INSERT INTO chapters(chapter_id, course_id, title) VALUES('python_chapter_0010', 'python', 'Ключевые факты');
+INSERT INTO chapters(chapter_id, course_id, title) VALUES('python_chapter_0020', 'python', 'Синтаксис');
+INSERT INTO chapters(chapter_id, course_id, title) VALUES('python_chapter_0030', 'python', 'Синтаксис: новые фишки');
 
-INSERT INTO chapters(chapter_id, course_id, seq) VALUES('python_chapter_0010', 'python', 'first');
-INSERT INTO chapters(chapter_id, course_id, seq) VALUES('python_chapter_0020', 'python', 'last');
+INSERT INTO tasks(task_id, chapter_id) VALUES('python_chapter_0010_task_0010', 'python_chapter_0010');
+INSERT INTO tasks(task_id, chapter_id) VALUES('python_chapter_0010_task_0020', 'python_chapter_0010');
+INSERT INTO tasks(task_id, chapter_id) VALUES('python_chapter_0010_task_0030', 'python_chapter_0010');
+
