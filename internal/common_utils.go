@@ -41,10 +41,10 @@ func ParseOptions(r *http.Request) (Options, error) {
 
 func GetContainerType(chapterId string) string {
 	if strings.HasPrefix(chapterId, "python") {
-		return "python_env"
+		return "python"
 	}
 	if strings.HasPrefix(chapterId, "rust") {
-		return "rust_env"
+		return "rust"
 	}
 
 	return ""
@@ -84,6 +84,14 @@ func GetPathToTaskWrapper(pathToCourses string, taskId string) (string, error) {
 	return filepath.Join(pathToCourses, courseId, chapterId, "tasks", taskId, "wrapper"), nil
 }
 
+func GetPathToChapterText(chapterId string) (string, error) {
+	if len(chapterId) < chapterIdSuffixSize+splitCharLen+1 {
+		return "", errors.New("invalid chapter id length")
+	}
+	courseId := chapterId[:len(chapterId)-chapterIdSuffixSize]
+	return filepath.Join(rootCourses, courseId, chapterId, "text.md"), nil
+}
+
 func InjectCodeToWrapper(taskId string, userCode string) (string, error) {
 	wrapperPath, err := GetPathToTaskWrapper(rootCourses, taskId)
 	if err != nil {
@@ -121,4 +129,16 @@ type ChapterForUser struct {
 	ChapterId string `json:"chapter_id"`
 	Status    string `json:"status"`
 	Title     string `json:"title"`
+}
+
+type TaskForUser struct {
+	TaskId   string `json:"task_id"`
+	UserCode string `json:"task_code"`
+	Status   string `json:"status"`
+}
+
+type ChapterContent struct {
+	ChapterForUser
+	ContentPath string        `json:"path_content"`
+	Tasks       []TaskForUser `json:"tasks"`
 }

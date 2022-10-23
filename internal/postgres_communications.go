@@ -3,6 +3,7 @@ package internal
 import (
 	"database/sql"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"net/http"
 	"path/filepath"
@@ -260,6 +261,105 @@ func GetChaptersForUser(userId string, courseId string) []ChapterForUser {
 	return chapters
 }
 
+func GetFirstChapterId(courseId string) (string, error) {
+	query := `
+		SELECT chapter_id FROM chapters WHERE course_id=$1 ORDER BY chapter_id ASC LIMIT 1
+	`
+	var firstChapterId string
+
+	row := DB.QueryRow(query, courseId)
+	err := row.Scan(&firstChapterId)
+	return firstChapterId, err
+}
+
+func GetPrevChapterId(courseId string, chapterId string) (string, error) {
+	query := `
+		SELECT chapter_id FROM chapters WHERE course_id=$1 AND chapter_id < $2 ORDER BY chapter_id DESC LIMIT 1
+	`
+	var prevChapterId string
+
+	row := DB.QueryRow(query, courseId, chapterId)
+	err := row.Scan(&prevChapterId)
+	return prevChapterId, err
+}
+
+func GetChapterProgress(userId string, chapterId string) (string, error) {
+	query := `
+		SELECT status FROM chapter_progress WHERE user_id=$1 AND chapter_id=$2
+	`
+	var status string
+
+	row := DB.QueryRow(query, userId, chapterId)
+	err := row.Scan(&status)
+	return status, err
+}
+
+func GetChapterInfo(userId string, chapterId string) (string, string, error) {
+	query := `
+		SELECT chapter_progress.status, chapters.title
+		FROM chapter_progress 
+		INNER JOIN chapters 
+		ON chapters.chapter_id = chapter_progress.chapter_id
+		WHERE user_id=$1 AND chapter_progress.chapter_id=$2
+	`
+	var status string
+	var title string
+
+	row := DB.QueryRow(query, userId, chapterId)
+	err := row.Scan(&status, &title)
+	return status, title, err
+}
+
+func GetChapterForUser(userId string, courseId string, chapterId string) (ChapterContent, error) {
+	var chapterContent ChapterContent
+
+	if len(courseId) != 0 {
+		// We need to get the first chapter in course id.
+		// We don't need to check user access (for now we don't have paid access).
+		activeChapterId, err := GetFirstChapterId(courseId)
+		if err != nil {
+			return ChapterContent{}, err
+		}
+		chapterContent.ChapterId = activeChapterId
+	} else {
+		// We need to check if user has rights to read this chapter
+		prevChapterId, err := GetPrevChapterId(courseId, chapterId)
+		if err != nil && err != sql.ErrNoRows {
+			return ChapterContent{}, err
+		}
+		if err != nil && err == sql.ErrNoRows {
+			chapterContent.ChapterId = chapterId
+		} else {
+			chapterStatus, err := GetChapterProgress(userId, prevChapterId)
+			if err != nil {
+				return ChapterContent{}, err
+			}
+
+			if chapterStatus != "completed" {
+				return ChapterContent{}, errors.New("user didn't complete the previous chapter")
+			}
+			chapterContent.ChapterId = chapterId
+		}
+	}
+
+	status, title, err := GetChapterInfo(userId, chapterContent.ChapterId)
+	if err != nil {
+		return ChapterContent{}, err
+	}
+	chapterContent.Status = status
+	chapterContent.Title = title
+
+	contentPath, err := GetPathToChapterText(chapterContent.ChapterId)
+	if err != nil {
+		return ChapterContent{}, err
+	}
+
+	chapterContent.ContentPath = contentPath
+	chapterContent.Tasks = GetTasks(chapterContent.ChapterId, userId)
+
+	return chapterContent, nil
+}
+
 func GetCourseProgressForUser(courseId string, userId string) (string, error) {
 	query := `
 		SELECT status FROM course_progress WHERE course_id=$1 AND user_id=$2
@@ -284,6 +384,44 @@ func GetCourseProgressForUser(courseId string, userId string) (string, error) {
 	}
 
 	return status, nil
+}
+
+func GetTasks(chapterId string, userId string) []TaskForUser {
+	query := `
+		SELECT 
+		tasks.task_id,
+		(CASE WHEN task_progress.status IS NULL THEN 'not_started' ELSE task_progress.status::varchar(40) END),
+		(CASE WHEN task_progress.solution_text IS NULL THEN '' ELSE task_progress.solution_text::varchar END)
+		FROM tasks 
+		LEFT JOIN task_progress
+		ON tasks.task_id = task_progress.task_id AND user_id = $1
+		WHERE chapter_id = $2
+	`
+
+	rows, err := DB.Query(query, userId, chapterId)
+	if err != nil {
+		return []TaskForUser{}
+	}
+
+	defer rows.Close()
+
+	tasks := []TaskForUser{}
+
+	for rows.Next() {
+		var task TaskForUser
+
+		if err := rows.Scan(&task.TaskId, &task.Status, &task.UserCode); err != nil {
+			log.WithFields(log.Fields{
+				"user_id": userId,
+				"error":   err.Error(),
+			}).Info("Couldn't parse row from tasks selection for user")
+			return []TaskForUser{}
+		}
+
+		tasks = append(tasks, task)
+	}
+
+	return tasks
 }
 
 func UpdateCourseProgressForUser(courseId string, status string, userId string) error {
@@ -447,4 +585,43 @@ func HandleGetChapters(w http.ResponseWriter, r *http.Request) {
 	}).Info("Successfully got chapters")
 
 	json.NewEncoder(w).Encode(chapters)
+}
+
+func HandleGetChapter(w http.ResponseWriter, r *http.Request) {
+	w.WriteHeader(http.StatusOK)
+	w.Header().Set("Content-type", "application/json")
+
+	opts, err := ParseOptions(r)
+	if err != nil {
+		body, _ := json.Marshal(map[string]string{
+			"error": fmt.Sprintf("Invalid request: %s", err),
+		})
+		w.Write(body)
+		return
+	}
+
+	if len(opts.userId) == 0 || len(opts.CourseId) == 0 && len(opts.ChapterId) == 0 {
+		json.NewEncoder(w).Encode(map[string]string{
+			"error": "Couldn't get required request params",
+		})
+		return
+	}
+
+	chapter, err := GetChapterForUser(opts.userId, opts.CourseId, opts.ChapterId)
+
+	if err != nil {
+		body, _ := json.Marshal(map[string]string{
+			"error": fmt.Sprintf("Couldn't get chapter for user: %s", err),
+		})
+		w.Write(body)
+		return
+	}
+
+	log.WithFields(log.Fields{
+		"user_id":    opts.userId,
+		"course_id":  opts.CourseId,
+		"chapter_id": opts.ChapterId,
+	}).Info("Successfully got chapter")
+
+	json.NewEncoder(w).Encode(chapter)
 }
