@@ -36,6 +36,7 @@ func main() {
 	r.HandleFunc("/get_courses", internal.HandleGetCourses)
 	r.HandleFunc("/update_course_progress", internal.HandleUpdateCourseProgress)
 	r.HandleFunc("/get_chapters", internal.HandleGetChapters)
+	r.HandleFunc("/get_chapter", internal.HandleGetChapter)
 
 	srv := &http.Server{
 		Handler:      r,

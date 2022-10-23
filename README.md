@@ -64,6 +64,28 @@ curl -X POST   -d '{"course_id":"rust", "status":"in_progress"}'   "http://local
 curl -X POST   -d '{"course_id":"python"}'   "http://localhost:8080/get_chapters?user_id=mesozoic.drones"
 ```
 
+`/get_chapter` - получение главы с задачами и их статусами для пользователя.
+```bash
+curl -X POST   -d '{"chapter_id":"python_chapter_0010"}'   "http://localhost:8080/get_chapter?user_id=mesozoic.drones"
+
+curl -X POST   -d '{"course_id":"python"}'   "http://localhost:8080/get_chapter?user_id=mesozoic.drones"
+```
+
+## Настройка PostgreSQL в докере для отладки
+Чтобы начать работать с handyman, можно запустить контейнер  с постгресом:
+```bash
+docker run  -e POSTGRES_PASSWORD=senjun_pass -p 5432:5432 -v postgres-plant-data:/var/lib/postgresql/data -d postgres
+```
+
+Зайти в него, применить миграции из `etc/postgres_migrations`:
+```bash
+docker ps
+516cd7b6f4d3   postgres     "docker-entrypoint.s…"  ...
+
+docker exec -it 516cd7b6f4d3 bash
+psql -U postgres
+```
+
 ## Полезные SQL-запросы для отладки и разворачивания базы
 ```
 -- show running queries

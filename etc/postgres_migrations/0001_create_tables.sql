@@ -102,3 +102,6 @@ INSERT INTO tasks(task_id, chapter_id) VALUES('python_chapter_0010_task_0010', '
 INSERT INTO tasks(task_id, chapter_id) VALUES('python_chapter_0010_task_0020', 'python_chapter_0010');
 INSERT INTO tasks(task_id, chapter_id) VALUES('python_chapter_0010_task_0030', 'python_chapter_0010');
 
+
+
+INSERT INTO chapter_progress(user_id, chapter_id, status) VALUES('mesozoic.drones', 'python_chapter_0010', 'in_progress');
