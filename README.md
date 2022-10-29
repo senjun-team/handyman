@@ -56,7 +56,7 @@ curl -X POST   -d '{"status":"all"}'   "http://localhost:8080/get_courses?user_i
 
 `/update_course_progress` - обновление прогресса пользователя по курсу. Например, для кнопок "начать" и "завершить".
 ```bash
-curl -X POST   -d '{"course_id":"rust", "status":"in_progress"}'   "http://localhost:8080/start_course?user_id=mesozoic.drones"
+curl -X POST   -d '{"course_id":"rust", "status":"in_progress"}'   "http://localhost:8080/update_course_progress?user_id=mesozoic.drones"
 ```
 
 `/get_chapters` - получение списка глав и их статусов для пользоваетля.

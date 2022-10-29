@@ -625,3 +625,29 @@ func HandleGetChapter(w http.ResponseWriter, r *http.Request) {
 
 	json.NewEncoder(w).Encode(chapter)
 }
+
+func HandleGetProgress(w http.ResponseWriter, r *http.Request) {
+	w.WriteHeader(http.StatusOK)
+	w.Header().Set("Content-type", "application/json")
+
+	opts, err := ParseOptions(r)
+	if err != nil {
+		body, _ := json.Marshal(map[string]string{
+			"error": fmt.Sprintf("Invalid request: %s", err),
+		})
+		w.Write(body)
+		return
+	}
+
+	if len(opts.userId) == 0 || len(opts.ChapterId) == 0 {
+		json.NewEncoder(w).Encode(map[string]string{
+			"error": "Couldn't get required request params",
+		})
+		return
+	}
+
+	//tasks := GetTasks(opts.ChapterId, opts.userId)
+
+	//w.Write(body)
+
+}
