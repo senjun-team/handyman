@@ -137,7 +137,7 @@ func HandleRunTask(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	userSourceCode := opts.SourceCode
-	opts.SourceCode, err = InjectCodeToWrapper(opts.TaskId, opts.SourceCode)
+	opts.SourceCode, err = InjectCodeToWrapper(opts)
 	if err != nil {
 		body, _ := json.Marshal(map[string]string{
 			"error": "Couldn't prepare tests for task runner",

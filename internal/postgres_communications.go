@@ -321,27 +321,27 @@ func GetChapterInfo(userId string, chapterId string) (string, string, error) {
 	return status, title, err
 }
 
-func GetChapterForUser(userId string, courseId string, chapterId string) (ChapterContent, error) {
+func GetChapterForUser(opts Options) (ChapterContent, error) {
 	var chapterContent ChapterContent
 
-	if len(courseId) != 0 {
+	if len(opts.ChapterId) == 0 {
 		// We need to get the first chapter in course id.
 		// We don't need to check user access (for now we don't have paid access).
-		activeChapterId, err := GetFirstChapterId(courseId)
+		activeChapterId, err := GetFirstChapterId(opts.CourseId)
 		if err != nil {
 			return ChapterContent{}, err
 		}
 		chapterContent.ChapterId = activeChapterId
 	} else {
 		// We need to check if user has rights to read this chapter
-		prevChapterId, err := GetPrevChapterId(courseId, chapterId)
+		prevChapterId, err := GetPrevChapterId(opts.CourseId, opts.ChapterId)
 		if err != nil && err != sql.ErrNoRows {
 			return ChapterContent{}, err
 		}
 		if err != nil && err == sql.ErrNoRows {
-			chapterContent.ChapterId = chapterId
+			chapterContent.ChapterId = opts.ChapterId
 		} else {
-			chapterStatus, err := GetChapterProgress(userId, prevChapterId)
+			chapterStatus, err := GetChapterProgress(opts.userId, prevChapterId)
 			if err != nil {
 				return ChapterContent{}, err
 			}
@@ -349,24 +349,24 @@ func GetChapterForUser(userId string, courseId string, chapterId string) (Chapte
 			if chapterStatus != "completed" {
 				return ChapterContent{}, errors.New("user didn't complete the previous chapter")
 			}
-			chapterContent.ChapterId = chapterId
+			chapterContent.ChapterId = opts.ChapterId
 		}
 	}
 
-	status, title, err := GetChapterInfo(userId, chapterContent.ChapterId)
+	status, title, err := GetChapterInfo(opts.userId, chapterContent.ChapterId)
 	if err != nil {
 		return ChapterContent{}, err
 	}
 	chapterContent.Status = status
 	chapterContent.Title = title
 
-	contentPath, err := GetPathToChapterText(chapterContent.ChapterId)
+	contentPath, err := GetPathToChapterText(opts.CourseId, chapterContent.ChapterId)
 	if err != nil {
 		return ChapterContent{}, err
 	}
 
 	chapterContent.ContentPath = contentPath
-	chapterContent.Tasks = GetTasks(chapterContent.ChapterId, userId)
+	chapterContent.Tasks = GetTasks(chapterContent.ChapterId, opts.userId)
 
 	return chapterContent, nil
 }
@@ -618,7 +618,7 @@ func HandleGetChapter(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	chapter, err := GetChapterForUser(opts.userId, opts.CourseId, opts.ChapterId)
+	chapter, err := GetChapterForUser(opts)
 
 	if err != nil {
 		body, _ := json.Marshal(map[string]string{
