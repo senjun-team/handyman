@@ -251,7 +251,7 @@ func GetChaptersForUser(userId string, courseId string) []ChapterForUser {
 			log.WithFields(log.Fields{
 				"user_id": userId,
 				"error":   err.Error(),
-			}).Info("Couldn't parse row from chapters selection for user")
+			}).Error("Couldn't parse row from chapters selection for user")
 			return []ChapterForUser{}
 		}
 
@@ -307,11 +307,13 @@ func GetChapterProgress(userId string, chapterId string) (string, error) {
 
 func GetChapterInfo(userId string, chapterId string) (string, string, error) {
 	query := `
-		SELECT chapter_progress.status, chapters.title
-		FROM chapter_progress 
-		INNER JOIN chapters 
-		ON chapters.chapter_id = chapter_progress.chapter_id
-		WHERE user_id=$1 AND chapter_progress.chapter_id=$2
+		SELECT
+		(CASE WHEN chapter_progress.status IS NULL THEN 'not_started' ELSE chapter_progress.status::varchar(40) END),
+		chapters.title
+		FROM chapters 
+		LEFT JOIN chapter_progress 
+		ON chapters.chapter_id = chapter_progress.chapter_id AND user_id=$1
+		WHERE  chapters.chapter_id=$2
 	`
 	var status string
 	var title string
@@ -665,7 +667,7 @@ func HandleGetProgress(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	if len(userProgress.NotCompletedTaskIds) > 0 {
+	if len(userProgress.NotCompletedTaskIds) > 0 || len(tasks) == 0 {
 		userProgress.StatusOnChapter = "chapter_not_completed"
 	} else {
 		userProgress.StatusOnChapter = "chapter_completed"
@@ -674,10 +676,10 @@ func HandleGetProgress(w http.ResponseWriter, r *http.Request) {
 			userProgress.IsCourseCompleted = true
 		} else if err != nil {
 			log.WithFields(log.Fields{
-				"user_id":   opts.userId,
-				"course_id": opts.CourseId,
-				"chapter_id":    opts.ChapterId,
-				"error":     err.Error(),
+				"user_id":    opts.userId,
+				"course_id":  opts.CourseId,
+				"chapter_id": opts.ChapterId,
+				"error":      err.Error(),
 			}).Error("Couldn't get user progress on chapter")
 
 			json.NewEncoder(w).Encode(map[string]string{

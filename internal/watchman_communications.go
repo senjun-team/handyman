@@ -37,14 +37,6 @@ func extractRunTaskOptions(r *http.Request) (Options, error) {
 		return Options{}, errors.New("empty course id")
 	}
 
-	if len(opts.ChapterId) == 0 {
-		return Options{}, errors.New("empty chapter id")
-	}
-
-	if len(opts.TaskId) == 0 {
-		return Options{}, errors.New("empty task id")
-	}
-
 	if len(opts.SourceCode) == 0 {
 		return Options{}, errors.New("empty source code")
 	}
@@ -59,8 +51,7 @@ func extractRunTaskOptions(r *http.Request) (Options, error) {
 }
 
 func genTaskTmpId(opts Options) string {
-	return fmt.Sprintf("%s_%s_%s_%d", opts.ChapterId, opts.userId,
-		opts.TaskId, time.Now().UnixNano())
+	return fmt.Sprintf("%s_%s_%d", opts.userId, opts.TaskId, time.Now().UnixNano())
 }
 
 func communicateWatchman(opts Options, c chan RunTaskResult) {
@@ -136,8 +127,9 @@ func HandleRunTask(w http.ResponseWriter, r *http.Request) {
 		w.Write(body)
 		return
 	}
+
 	userSourceCode := opts.SourceCode
-	opts.SourceCode, err = InjectCodeToWrapper(opts)
+	err = InjectCodeToWrapper(&opts)
 	if err != nil {
 		body, _ := json.Marshal(map[string]string{
 			"error": "Couldn't prepare tests for task runner",

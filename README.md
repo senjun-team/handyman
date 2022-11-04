@@ -24,7 +24,7 @@ go build .
 
 Настроить симлинк на директорию с курсами:
 ```bash
-sudo ln -s /home/your_user/senjun/courses/courses/ /etc/courses
+sudo ln -s /home/your_user/senjun/courses/courses/ /data/courses
 ```
 
 Для разработки можно использовать такие IDE как VSCode, LiteIDE и другие.
@@ -45,35 +45,35 @@ go mod tidy
 `/run_task` - запуск решения пользователя для задачи курса.
 ```bash
 curl -X POST \
-  -d '{"task_id":"python_chapter_0010_task_0010", "chapter_id":"python_chapter_0010", "course_id":"python", "solution_text":"err_service_unavailable = 503"}' \
-  "http://localhost:8080/run_task?user_id=mesozoic.drones"
+  -d '{"task_id":"python_chapter_0010_task_0010", "solution_text":"err_service_unavailable = 503"}' \
+  "http://localhost:8080/run_task?user_id=4564"
 ```
 
 `/get_courses` - получение списка курсов с их характеристиками.
 ```bash
-curl -X POST   -d '{"status":"all"}'   "http://localhost:8080/get_courses?user_id=mesozoic.drones"
+curl -X POST   -d '{"status":"all"}'   "http://localhost:8080/get_courses?user_id=4564"
 ```
 
 `/update_course_progress` - обновление прогресса пользователя по курсу. Например, для кнопок "начать" и "завершить".
 ```bash
-curl -X POST   -d '{"course_id":"rust", "status":"in_progress"}'   "http://localhost:8080/update_course_progress?user_id=mesozoic.drones"
+curl -X POST   -d '{"course_id":"rust", "status":"in_progress"}'   "http://localhost:8080/update_course_progress?user_id=4564"
 ```
 
 `/get_chapters` - получение списка глав и их статусов для пользоваетля.
 ```bash
-curl -X POST   -d '{"course_id":"python"}'   "http://localhost:8080/get_chapters?user_id=mesozoic.drones"
+curl -X POST   -d '{"course_id":"python"}'   "http://localhost:8080/get_chapters?user_id=4564"
 ```
 
 `/get_chapter` - получение главы с задачами и их статусами для пользователя.
 ```bash
-curl -X POST   -d '{"chapter_id":"python_chapter_0010"}'   "http://localhost:8080/get_chapter?user_id=mesozoic.drones"
+curl -X POST   -d '{"chapter_id":"python_chapter_0010"}'   "http://localhost:8080/get_chapter?user_id=4564"
 
-curl -X POST   -d '{"course_id":"python"}'   "http://localhost:8080/get_chapter?user_id=mesozoic.drones"
+curl -X POST   -d '{"course_id":"python"}'   "http://localhost:8080/get_chapter?user_id=4564"
 ```
 
 `/get_progress` - получение прогресса пользователя по главе.
 ```bash
-curl -X POST   -d '{"chapter_id":"python_chapter_0010"}'   "http://localhost:8080/get_progress?user_id=mesozoic.drones"
+curl -X POST   -d '{"chapter_id":"python_chapter_0010"}'   "http://localhost:8080/get_progress?user_id=4564"
 ```
 
 ## Настройка PostgreSQL в докере для отладки

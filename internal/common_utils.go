@@ -51,7 +51,6 @@ func ParseOptions(r *http.Request) (Options, error) {
 	return opts, err
 }
 
-
 const taskIdFixedSize = 9      // task_0042
 const chapterIdSuffixSize = 12 // chapter_0015
 const splitChar = "_"
@@ -59,8 +58,7 @@ const splitCharLen = len(splitChar)
 const minChapterIdLen = 1 + splitCharLen + chapterIdSuffixSize
 const minTaskIdLen = minChapterIdLen + splitCharLen + taskIdFixedSize
 
-
-func FillOptionsByTaskId(opts * Options) error {
+func FillOptionsByTaskId(opts *Options) error {
 	if len(opts.TaskId) == 0 {
 		return errors.New("empty task id")
 	}
@@ -75,7 +73,7 @@ func FillOptionsByTaskId(opts * Options) error {
 	return nil
 }
 
-func FillOptionsByChapterId(opts * Options) error {
+func FillOptionsByChapterId(opts *Options) error {
 	if len(opts.ChapterId) == 0 {
 		return errors.New("empty chapter id")
 	}
@@ -116,7 +114,7 @@ const injectMarker = "#INJECT-b585472fa"
 // Gets root path to courses (for example '/courses'),
 // opts.TaskId (for example 'python_chapter_0010_task_0060'),
 // returns path to task wrapper
-func GetPathToTaskWrapper(opts Options) string {
+func GetPathToTaskWrapper(opts *Options) string {
 	return filepath.Join(rootCourses, opts.CourseId, opts.ChapterId, "tasks", opts.TaskId, "wrapper")
 }
 
@@ -124,7 +122,7 @@ func GetPathToChapterText(courseId string, chapterId string) (string, error) {
 	return filepath.Join(rootCourses, courseId, chapterId, "text.md"), nil
 }
 
-func InjectCodeToWrapper(opts Options) (string, error) {
+func InjectCodeToWrapper(opts *Options) error {
 	wrapperPath := GetPathToTaskWrapper(opts)
 
 	content, err := os.ReadFile(wrapperPath)
@@ -134,10 +132,11 @@ func InjectCodeToWrapper(opts Options) (string, error) {
 			"task_id":         opts.TaskId,
 			"path_to_wrapper": wrapperPath,
 		}).Error("Couldn't read wrapper text")
-		return "", err
+		return err
 	}
 
-	return strings.ReplaceAll(string(content), injectMarker, opts.SourceCode), nil
+	opts.SourceCode = strings.ReplaceAll(string(content), injectMarker, opts.SourceCode)
+	return nil
 }
 
 type CourseForUser struct {
@@ -172,6 +171,6 @@ type UserProgress struct {
 	StatusOnChapter string `json:"user_status_on_chapter"`
 
 	NotCompletedTaskIds []string `json:"not_completed_tasks,omitempty"`
-	NextChapterId string `json:"next_chapter_id,omitempty"`
-	IsCourseCompleted bool `json:"is_course_completed,omitempty"`
+	NextChapterId       string   `json:"next_chapter_id,omitempty"`
+	IsCourseCompleted   bool     `json:"is_course_completed,omitempty"`
 }
