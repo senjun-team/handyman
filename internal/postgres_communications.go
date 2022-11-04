@@ -251,7 +251,7 @@ func GetChaptersForUser(userId string, courseId string) []ChapterForUser {
 			log.WithFields(log.Fields{
 				"user_id": userId,
 				"error":   err.Error(),
-			}).Info("Couldn't parse row from chapters selection for user")
+			}).Error("Couldn't parse row from chapters selection for user")
 			return []ChapterForUser{}
 		}
 
@@ -307,11 +307,13 @@ func GetChapterProgress(userId string, chapterId string) (string, error) {
 
 func GetChapterInfo(userId string, chapterId string) (string, string, error) {
 	query := `
-		SELECT chapter_progress.status, chapters.title
-		FROM chapter_progress 
-		INNER JOIN chapters 
-		ON chapters.chapter_id = chapter_progress.chapter_id
-		WHERE user_id=$1 AND chapter_progress.chapter_id=$2
+		SELECT
+		(CASE WHEN chapter_progress.status IS NULL THEN 'not_started' ELSE chapter_progress.status::varchar(40) END),
+		chapters.title
+		FROM chapters 
+		LEFT JOIN chapter_progress 
+		ON chapters.chapter_id = chapter_progress.chapter_id AND user_id=$1
+		WHERE  chapters.chapter_id=$2
 	`
 	var status string
 	var title string
@@ -321,27 +323,27 @@ func GetChapterInfo(userId string, chapterId string) (string, string, error) {
 	return status, title, err
 }
 
-func GetChapterForUser(userId string, courseId string, chapterId string) (ChapterContent, error) {
+func GetChapterForUser(opts Options) (ChapterContent, error) {
 	var chapterContent ChapterContent
 
-	if len(courseId) != 0 {
+	if len(opts.ChapterId) == 0 {
 		// We need to get the first chapter in course id.
 		// We don't need to check user access (for now we don't have paid access).
-		activeChapterId, err := GetFirstChapterId(courseId)
+		activeChapterId, err := GetFirstChapterId(opts.CourseId)
 		if err != nil {
 			return ChapterContent{}, err
 		}
 		chapterContent.ChapterId = activeChapterId
 	} else {
 		// We need to check if user has rights to read this chapter
-		prevChapterId, err := GetPrevChapterId(courseId, chapterId)
+		prevChapterId, err := GetPrevChapterId(opts.CourseId, opts.ChapterId)
 		if err != nil && err != sql.ErrNoRows {
 			return ChapterContent{}, err
 		}
 		if err != nil && err == sql.ErrNoRows {
-			chapterContent.ChapterId = chapterId
+			chapterContent.ChapterId = opts.ChapterId
 		} else {
-			chapterStatus, err := GetChapterProgress(userId, prevChapterId)
+			chapterStatus, err := GetChapterProgress(opts.userId, prevChapterId)
 			if err != nil {
 				return ChapterContent{}, err
 			}
@@ -349,24 +351,26 @@ func GetChapterForUser(userId string, courseId string, chapterId string) (Chapte
 			if chapterStatus != "completed" {
 				return ChapterContent{}, errors.New("user didn't complete the previous chapter")
 			}
-			chapterContent.ChapterId = chapterId
+			chapterContent.ChapterId = opts.ChapterId
 		}
 	}
 
-	status, title, err := GetChapterInfo(userId, chapterContent.ChapterId)
+	status, title, err := GetChapterInfo(opts.userId, chapterContent.ChapterId)
 	if err != nil {
 		return ChapterContent{}, err
 	}
 	chapterContent.Status = status
 	chapterContent.Title = title
 
-	contentPath, err := GetPathToChapterText(chapterContent.ChapterId)
+	contentPath, err := GetPathToChapterText(opts.CourseId, chapterContent.ChapterId)
 	if err != nil {
 		return ChapterContent{}, err
 	}
 
-	chapterContent.ContentPath = contentPath
-	chapterContent.Tasks = GetTasks(chapterContent.ChapterId, userId)
+	chapterText, _ := ReadTextFile(contentPath)
+
+	chapterContent.Content = chapterText
+	chapterContent.Tasks = GetTasks(chapterContent.ChapterId, opts.userId)
 
 	return chapterContent, nil
 }
@@ -478,8 +482,11 @@ func HandleGetCourses(w http.ResponseWriter, r *http.Request) {
 	}
 
 	for i := 0; i < len(courses); i++ {
-		courses[i].DescriptionPath = filepath.Join(courses[i].Path, "description.md")
-		courses[i].IconPath = filepath.Join(courses[i].Path, "icon.svg")
+		descr, _ := ReadTextFile(filepath.Join(rootCourses, courses[i].Path, "description.md"))
+		courses[i].Description = descr
+
+		iconSvg, _ := ReadTextFile(filepath.Join(rootCourses, courses[i].Path, "icon.svg"))
+		courses[i].Icon = iconSvg
 	}
 
 	log.WithFields(log.Fields{
@@ -618,7 +625,7 @@ func HandleGetChapter(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	chapter, err := GetChapterForUser(opts.userId, opts.CourseId, opts.ChapterId)
+	chapter, err := GetChapterForUser(opts)
 
 	if err != nil {
 		body, _ := json.Marshal(map[string]string{
@@ -665,7 +672,7 @@ func HandleGetProgress(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	if len(userProgress.NotCompletedTaskIds) > 0 {
+	if len(userProgress.NotCompletedTaskIds) > 0 || len(tasks) == 0 {
 		userProgress.StatusOnChapter = "chapter_not_completed"
 	} else {
 		userProgress.StatusOnChapter = "chapter_completed"
@@ -674,10 +681,10 @@ func HandleGetProgress(w http.ResponseWriter, r *http.Request) {
 			userProgress.IsCourseCompleted = true
 		} else if err != nil {
 			log.WithFields(log.Fields{
-				"user_id":   opts.userId,
-				"course_id": opts.CourseId,
-				"chapter_id":    opts.ChapterId,
-				"error":     err.Error(),
+				"user_id":    opts.userId,
+				"course_id":  opts.CourseId,
+				"chapter_id": opts.ChapterId,
+				"error":      err.Error(),
 			}).Error("Couldn't get user progress on chapter")
 
 			json.NewEncoder(w).Encode(map[string]string{

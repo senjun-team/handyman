@@ -36,15 +36,63 @@ func ParseOptions(r *http.Request) (Options, error) {
 		return Options{}, errors.New("invalid user id")
 	}
 
+	if len(opts.TaskId) > 0 {
+		err := FillOptionsByTaskId(&opts)
+		if err != nil {
+			return Options{}, err
+		}
+	} else if len(opts.ChapterId) > 0 {
+		err := FillOptionsByChapterId(&opts)
+		if err != nil {
+			return Options{}, err
+		}
+	}
+
 	return opts, err
+}
+
+const taskIdFixedSize = 9      // task_0042
+const chapterIdSuffixSize = 12 // chapter_0015
+const splitChar = "_"
+const splitCharLen = len(splitChar)
+const minChapterIdLen = 1 + splitCharLen + chapterIdSuffixSize
+const minTaskIdLen = minChapterIdLen + splitCharLen + taskIdFixedSize
+
+func FillOptionsByTaskId(opts *Options) error {
+	if len(opts.TaskId) == 0 {
+		return errors.New("empty task id")
+	}
+
+	if len(opts.TaskId) < minTaskIdLen {
+		return errors.New("invalid length of task id")
+	}
+
+	opts.ChapterId = opts.TaskId[:len(opts.TaskId)-taskIdFixedSize-1]
+	opts.CourseId = opts.ChapterId[:len(opts.ChapterId)-chapterIdSuffixSize-splitCharLen]
+
+	return nil
+}
+
+func FillOptionsByChapterId(opts *Options) error {
+	if len(opts.ChapterId) == 0 {
+		return errors.New("empty chapter id")
+	}
+
+	if len(opts.ChapterId) < minChapterIdLen {
+		return errors.New("invalid length of chapter id")
+	}
+
+	opts.CourseId = opts.ChapterId[:len(opts.ChapterId)-chapterIdSuffixSize-splitCharLen]
+
+	return nil
 }
 
 func GetContainerType(chapterId string) string {
 	if strings.HasPrefix(chapterId, "python") {
-		return "python"
+		return "senjun_courses_python"
 	}
 	if strings.HasPrefix(chapterId, "rust") {
-		return "rust"
+		return "senjun_courses_rust"
 	}
 
 	return ""
@@ -60,59 +108,39 @@ func GetUserId(r *http.Request) string {
 	// parseUserFormJwt(jwtToken)
 }
 
-const taskIdFixedSize = 9      // task_0042
-const chapterIdSuffixSize = 12 // chapter_0015
-const splitChar = "_"
-const splitCharLen = len(splitChar)
-const minTaskIdLen = taskIdFixedSize + splitCharLen*2 + chapterIdSuffixSize + 1
-
-const rootCourses = "/etc/courses/"
-const injectMarker = "#INJECT"
+const rootCourses = "/data/courses/"
+const injectMarker = "#INJECT-b585472fa"
 
 // Gets root path to courses (for example '/courses'),
-// task id (for example 'python_chapter_0010_task_0060'),
-// returns path to task wrapper:
-// /courses/python/python_chapter_0010/python_chapter_0010_task_0060/wrapper
-func GetPathToTaskWrapper(pathToCourses string, taskId string) (string, error) {
-	if len(taskId) < minTaskIdLen {
-		return "", errors.New("invalid task id length")
-	}
-
-	chapterId := taskId[:len(taskId)-taskIdFixedSize-1]
-	courseId := chapterId[:len(chapterId)-chapterIdSuffixSize-splitCharLen]
-
-	return filepath.Join(pathToCourses, courseId, chapterId, "tasks", taskId, "wrapper"), nil
+// opts.TaskId (for example 'python_chapter_0010_task_0060'),
+// returns path to task wrapper
+func GetPathToTaskWrapper(opts *Options) string {
+	return filepath.Join(rootCourses, opts.CourseId, opts.ChapterId, "tasks", opts.TaskId, "wrapper")
 }
 
-func GetPathToChapterText(chapterId string) (string, error) {
-	if len(chapterId) < chapterIdSuffixSize+splitCharLen+1 {
-		return "", errors.New("invalid chapter id length")
-	}
-	courseId := chapterId[:len(chapterId)-chapterIdSuffixSize]
+func GetPathToChapterText(courseId string, chapterId string) (string, error) {
 	return filepath.Join(rootCourses, courseId, chapterId, "text.md"), nil
 }
 
-func InjectCodeToWrapper(taskId string, userCode string) (string, error) {
-	wrapperPath, err := GetPathToTaskWrapper(rootCourses, taskId)
-	if err != nil {
-		log.WithFields(log.Fields{
-			"Error":   err,
-			"task_id": taskId,
-		}).Error("Couldn't get path to task wrapper")
-		return "", err
-	}
-
-	content, err := os.ReadFile(wrapperPath)
+func ReadTextFile(path string) (string, error) {
+	content, err := os.ReadFile(path)
 	if err != nil {
 		log.WithFields(log.Fields{
 			"Error":           err,
-			"task_id":         taskId,
-			"path_to_wrapper": wrapperPath,
-		}).Error("Couldn't read wrapper text")
+			"filepath": path,
+		}).Error("Couldn't read file")
 		return "", err
 	}
 
-	return strings.ReplaceAll(string(content), injectMarker, userCode), nil
+	return string(content), err
+}
+
+func InjectCodeToWrapper(opts *Options) error {
+	wrapperPath := GetPathToTaskWrapper(opts)
+	content, err := ReadTextFile(wrapperPath)
+
+	opts.SourceCode = strings.ReplaceAll(string(content), injectMarker, opts.SourceCode)
+	return err
 }
 
 type CourseForUser struct {
@@ -121,8 +149,8 @@ type CourseForUser struct {
 	Status          string `json:"status"`
 	Path            string `json:"-"`
 	Title           string `json:"title"`
-	IconPath        string `json:"path_icon"`
-	DescriptionPath string `json:"path_description"`
+	Icon        string `json:"icon"`
+	Description string `json:"description"`
 }
 
 type ChapterForUser struct {
@@ -139,13 +167,14 @@ type TaskForUser struct {
 
 type ChapterContent struct {
 	ChapterForUser
-	ContentPath string        `json:"path_content"`
+	Content string        `json:"content"`
 	Tasks       []TaskForUser `json:"tasks"`
 }
 
 type UserProgress struct {
-	NotCompletedTaskIds []string `json:"not_completed_tasks"`
 	StatusOnChapter string `json:"user_status_on_chapter"`
-	NextChapterId string `json:"next_chapter_id"`
-	IsCourseCompleted bool `json:"is_course_completed"`
+
+	NotCompletedTaskIds []string `json:"not_completed_tasks,omitempty"`
+	NextChapterId       string   `json:"next_chapter_id,omitempty"`
+	IsCourseCompleted   bool     `json:"is_course_completed,omitempty"`
 }

@@ -13,25 +13,6 @@ CREATE TYPE course_type AS ENUM('free', 'paid');
 
 
 -- Tables & indices
-CREATE TABLE users (
-    user_id varchar NOT NULL PRIMARY KEY
-);
-ALTER TABLE users OWNER TO senjun;
-
-
-CREATE TABLE user_data (
-    user_id varchar NOT NULL PRIMARY KEY,
-    login varchar NOT NULL,
-    pass_hash varchar NOT NULL,
-    created timestamptz default current_timestamp,
-    is_blocked boolean NOT NULL,
-    name varchar,
-    surname varchar,
-    phone varchar NOT NULL,
-    CONSTRAINT fk_user_id FOREIGN KEY(user_id) REFERENCES users(user_id)
-);
-ALTER TABLE user_data OWNER TO senjun;
-
 
 CREATE TABLE courses (
     course_id varchar NOT NULL PRIMARY KEY,
@@ -57,10 +38,9 @@ CREATE TABLE tasks (
 ALTER TABLE tasks OWNER TO senjun;
 
 CREATE TABLE course_progress (
-    user_id varchar NOT NULL,
+    user_id BIGINT NOT NULL,
     course_id varchar NOT NULL,
     status edu_material_status NOT NULL,
-    CONSTRAINT fk_user_id FOREIGN KEY(user_id) REFERENCES users(user_id),
     CONSTRAINT fk_course_id FOREIGN KEY(course_id) REFERENCES courses(course_id)
 );
 CREATE UNIQUE INDEX CONCURRENTLY unique_user_course_id ON course_progress(user_id, course_id);
@@ -68,10 +48,9 @@ ALTER TABLE course_progress ADD CONSTRAINT unique_user_course_id UNIQUE USING IN
 ALTER TABLE course_progress OWNER TO senjun;
 
 CREATE TABLE chapter_progress (
-    user_id varchar NOT NULL,
+    user_id BIGINT NOT NULL,
     chapter_id varchar NOT NULL,
     status edu_material_status NOT NULL,
-    CONSTRAINT fk_user_id FOREIGN KEY(user_id) REFERENCES users(user_id),
     CONSTRAINT fk_chapter_id FOREIGN KEY(chapter_id) REFERENCES chapters(chapter_id)
 );
 CREATE UNIQUE INDEX CONCURRENTLY unique_user_chapter_id ON chapter_progress(user_id, chapter_id);
@@ -79,12 +58,11 @@ ALTER TABLE chapter_progress ADD CONSTRAINT unique_user_chapter_id UNIQUE USING 
 ALTER TABLE chapter_progress OWNER TO senjun;
 
 CREATE TABLE task_progress (
-    user_id varchar NOT NULL,
+    user_id BIGINT NOT NULL,
     task_id varchar NOT NULL,
     status edu_material_status NOT NULL,
     solution_text text NOT NULL,
     attempts_count smallint DEFAULT 0 NOT NULL,
-    CONSTRAINT fk_user_id FOREIGN KEY(user_id) REFERENCES users(user_id),
     CONSTRAINT fk_task_id FOREIGN KEY(task_id) REFERENCES tasks(task_id)
 );
 CREATE UNIQUE INDEX CONCURRENTLY unique_user_task_id ON task_progress(user_id, task_id);
@@ -94,8 +72,8 @@ ALTER TABLE task_progress OWNER TO senjun;
 -- FILL TABLES
 
 INSERT INTO courses(course_id, title, path_on_disk) VALUES
-('python', 'Python', '/courses/python'),
-('rust', 'Rust', '/courses/rust');
+('python', 'Python', 'python'),
+('rust', 'Rust', 'rust');
 
 INSERT INTO chapters(chapter_id, course_id, title) VALUES
 ('python_chapter_0010', 'python', 'Ключевые факты'),
@@ -110,10 +88,5 @@ INSERT INTO tasks(task_id, chapter_id) VALUES
 
 -- FILL TABLES FOR TEST PURPOSES ONLY
 
-INSERT INTO users(user_id) VALUES
-('mesozoic.drones'),
-('khva'),
-('Buldozer');
-
 INSERT INTO chapter_progress(user_id, chapter_id, status) VALUES
-('mesozoic.drones', 'python_chapter_0010', 'in_progress');
+(100, 'python_chapter_0010', 'in_progress');
