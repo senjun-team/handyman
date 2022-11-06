@@ -143,6 +143,27 @@ func InjectCodeToWrapper(opts *Options) error {
 	return err
 }
 
+func IsNewStatusValid(curStatus string, newStatus string) bool {
+	// Possible statuses:
+	// 'not_started' or empty, 'in_progress', 'blocked', 'completed'
+
+	// In case we want to block any course/chapter/task
+	if newStatus == "blocked" {
+		return true
+	}
+
+	if (len(curStatus) == 0 || curStatus == "not_started") && newStatus == "in_progress" {
+		return true
+	}
+
+	if curStatus == "in_progress" && newStatus == "completed" {
+		return true
+	}
+
+	return false
+}
+
+
 type CourseForUser struct {
 	CourseId        string `json:"course_id"`
 	CourseType      string `json:"type"`

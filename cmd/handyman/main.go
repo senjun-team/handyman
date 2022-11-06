@@ -35,6 +35,7 @@ func main() {
 	r.HandleFunc("/run_task", internal.HandleRunTask)
 	r.HandleFunc("/get_courses", internal.HandleGetCourses)
 	r.HandleFunc("/update_course_progress", internal.HandleUpdateCourseProgress)
+	r.HandleFunc("/update_chapter_progress", internal.HandleUpdateChapterProgress)
 	r.HandleFunc("/get_chapters", internal.HandleGetChapters)
 	r.HandleFunc("/get_chapter", internal.HandleGetChapter)
 	r.HandleFunc("/get_progress", internal.HandleGetProgress)

@@ -169,11 +169,10 @@ func HandleRunTask(w http.ResponseWriter, r *http.Request) {
 
 	WP.Submit(func() {
 		UpdateTaskStatus(opts.userId, opts.TaskId, res.Status, userSourceCode)
-		UpdateChapterStatus(opts.userId, opts.ChapterId, opts.TaskId, res.Status)
 	})
 
 	log.WithFields(log.Fields{
-		"status": res.Status,
+		"user_code_status": res.Status,
 	}).Info("Successfully communicated watchman")
 
 	json.NewEncoder(w).Encode(res)
