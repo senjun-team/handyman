@@ -283,6 +283,25 @@ func GetPrevChapterId(courseId string, chapterId string) (string, error) {
 	return prevChapterId, err
 }
 
+func IsUserAllowedToRunTask(opts Options) (bool, error) {
+	// We check that current chapter is in progress or finished
+	progress, err := GetChapterProgress(opts.userId, opts.ChapterId)
+	if err != nil {
+		// Chapter is not started
+		if err == sql.ErrNoRows {
+			return false, nil
+		}
+
+		return false, err
+	}
+
+	if progress == "blocked" {
+		return false, nil
+	}
+
+	return true, nil
+}
+
 func GetNextChapterId(courseId string, chapterId string) (string, error) {
 	query := `
 		SELECT chapter_id FROM chapters WHERE course_id=$1 AND chapter_id > $2 ORDER BY chapter_id ASC LIMIT 1

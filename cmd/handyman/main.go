@@ -15,7 +15,7 @@ import (
 const version = "1.0"
 const addrHandyman = "127.0.0.1:8080"
 
-const timeoutReplyToUser = 40 * time.Second
+const timeoutReplyToUser = 20 * time.Second
 
 func main() {
 	log.WithFields(log.Fields{

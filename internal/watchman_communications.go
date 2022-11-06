@@ -128,6 +128,23 @@ func HandleRunTask(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	isAllowed, err := IsUserAllowedToRunTask(opts)
+	if err != nil {
+		body, _ := json.Marshal(map[string]string{
+			"error": fmt.Sprintf("Couldn't check user permissions on this chapter: %s", err),
+		})
+		w.Write(body)
+		return
+	}
+
+	if !isAllowed {
+		body, _ := json.Marshal(map[string]string{
+			"error": "User doesn't have permissions on this chapter",
+		})
+		w.Write(body)
+		return
+	}
+
 	userSourceCode := opts.SourceCode
 	err = InjectCodeToWrapper(&opts)
 	if err != nil {
