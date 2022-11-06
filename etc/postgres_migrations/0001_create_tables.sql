@@ -78,7 +78,9 @@ INSERT INTO courses(course_id, title, path_on_disk) VALUES
 INSERT INTO chapters(chapter_id, course_id, title) VALUES
 ('python_chapter_0010', 'python', 'Ключевые факты'),
 ('python_chapter_0020', 'python', 'Синтаксис'),
-('python_chapter_0030', 'python', 'Синтаксис: новые фишки');
+('python_chapter_0030', 'python', 'Синтаксис: новые фишки'),
+('rust_chapter_0010', 'rust', 'Введение'),
+('rust_chapter_0020', 'rust', 'Переменные и базовые типы данных');
 
 INSERT INTO tasks(task_id, chapter_id) VALUES
 ('python_chapter_0010_task_0010', 'python_chapter_0010'),

@@ -21,10 +21,12 @@ var WP *workerpool.WorkerPool
 
 const connStr = "postgresql://senjun:some_password@127.0.0.1:5432/senjun?sslmode=disable"
 
+var Logger *log.Logger
+
 func ConnectDb() *sql.DB {
 	db, err := sql.Open("postgres", connStr)
 	if err != nil {
-		log.WithFields(log.Fields{
+		Logger.WithFields(log.Fields{
 			"error": err,
 		}).Fatal("Couldn't call Open() for db")
 	}
@@ -32,7 +34,7 @@ func ConnectDb() *sql.DB {
 	err = db.Ping()
 
 	if err != nil {
-		log.WithFields(log.Fields{
+		Logger.WithFields(log.Fields{
 			"connStr": connStr,
 			"error":   err,
 		}).Fatal("Couldn't communicate db")
@@ -66,7 +68,7 @@ func UpdateTaskStatus(userId string, taskId string, statusCode int, solutionText
 	`
 	_, err := DB.Exec(query, userId, taskId, taskStatus, solutionText, attemptsCount)
 	if err != nil {
-		log.WithFields(log.Fields{
+		Logger.WithFields(log.Fields{
 			"user_id":  userId,
 			"task_id":  taskId,
 			"db_error": err.Error(),
@@ -74,83 +76,41 @@ func UpdateTaskStatus(userId string, taskId string, statusCode int, solutionText
 		return
 	}
 
-	log.WithFields(log.Fields{
+	Logger.WithFields(log.Fields{
 		"user_id": userId,
 		"task_id": taskId,
 	}).Info("Updated task status for user")
 }
 
-func UpdateChapterStatus(userId string, chapterId string, taskId string, statusCode int) {
-	// If task is not solved correctly we don't need to update chapter status
-	if statusCode != 0 {
-		return
-	}
-	const queryTasks = `
-		SELECT
-		(CASE WHEN task_progress.status IS NULL THEN 'not_started' ELSE task_progress.status::varchar(40) END)  
-		FROM tasks 
-		LEFT JOIN task_progress ON 
-		tasks.task_id = task_progress.task_id 
-		AND tasks.chapter_id= $1
-		AND task_progress.user_id = $2
+func GetCourses() []CourseForUser {
+	query := `
+		SELECT courses.course_id, courses.path_on_disk, courses.type, courses.title
+		FROM courses
 	`
 
-	rows, err := DB.Query(queryTasks, chapterId, userId)
+	rows, err := DB.Query(query)
 	if err != nil {
-		log.WithFields(log.Fields{
-			"user_id":    userId,
-			"task_id":    taskId,
-			"chapter_id": chapterId,
-			"db_error":   err.Error(),
-		}).Error("Couldn't get tasks for chapter")
-		return
+		return []CourseForUser{}
 	}
 
 	defer rows.Close()
 
-	chapterStatus := "completed"
+	courses := []CourseForUser{}
 
 	for rows.Next() {
-		var status string
+		var course CourseForUser
 
-		if err := rows.Scan(&status); err != nil {
-			log.WithFields(log.Fields{
-				"user_id":    userId,
-				"task_id":    taskId,
-				"chapter_id": chapterId,
-				"error":      err.Error(),
-			}).Info("Couldn't parse row from tasks selection for user")
-			return
+		if err := rows.Scan(&course.CourseId, &course.Path, &course.CourseType, &course.Title); err != nil {
+			Logger.WithFields(log.Fields{
+				"error":   err.Error(),
+			}).Info("Couldn't parse row from courses selection")
+			return []CourseForUser{}
 		}
 
-		if status != "completed" {
-			chapterStatus = "in_progress"
-			break
-		}
+		courses = append(courses, course)
 	}
 
-	const query = `
-		INSERT INTO chapter_progress(user_id, chapter_id, status) 
-		VALUES($1, $2, $3) 
-		ON CONFLICT ON CONSTRAINT unique_user_chapter_id 
-		DO UPDATE SET
-		status = EXCLUDED.status
-	`
-
-	_, err = DB.Exec(query, userId, chapterId, chapterStatus)
-	if err != nil {
-		log.WithFields(log.Fields{
-			"user_id":    userId,
-			"chapter_id": chapterId,
-			"db_error":   err.Error(),
-		}).Error("Couldn't update chapter status for user")
-		return
-	}
-
-	log.WithFields(log.Fields{
-		"user_id":    userId,
-		"chapter_id": chapterId,
-	}).Info("Updated chapter status for user")
+	return courses
 }
 
 func GetCoursesForUser(userId string) []CourseForUser {
@@ -175,7 +135,7 @@ func GetCoursesForUser(userId string) []CourseForUser {
 		var course CourseForUser
 
 		if err := rows.Scan(&course.CourseId, &course.Path, &course.CourseType, &course.Title, &course.Status); err != nil {
-			log.WithFields(log.Fields{
+			Logger.WithFields(log.Fields{
 				"user_id": userId,
 				"error":   err.Error(),
 			}).Info("Couldn't parse row from courses selection for user")
@@ -210,7 +170,7 @@ func GetCoursesForUserByStatus(userId string, status string) []CourseForUser {
 		var course CourseForUser
 
 		if err := rows.Scan(&course.CourseId, &course.Path, &course.CourseType, &course.Title); err != nil {
-			log.WithFields(log.Fields{
+			Logger.WithFields(log.Fields{
 				"user_id": userId,
 				"error":   err.Error(),
 			}).Info("Couldn't parse row from courses selection for user")
@@ -248,7 +208,7 @@ func GetChaptersForUser(userId string, courseId string) []ChapterForUser {
 		var chapter ChapterForUser
 
 		if err := rows.Scan(&chapter.ChapterId, &chapter.Title, &chapter.Status); err != nil {
-			log.WithFields(log.Fields{
+			Logger.WithFields(log.Fields{
 				"user_id": userId,
 				"error":   err.Error(),
 			}).Error("Couldn't parse row from chapters selection for user")
@@ -342,6 +302,29 @@ func GetChapterInfo(userId string, chapterId string) (string, string, error) {
 	return status, title, err
 }
 
+
+func UserHasPermissionsForChapter(opts Options) (bool, error) {
+	prevChapterId, err := GetPrevChapterId(opts.CourseId, opts.ChapterId)
+
+	if err != nil {
+		// First chapter in course
+		if err == sql.ErrNoRows {
+			return true, nil
+		}
+
+		return false, err
+	}
+
+	chapterStatus, err := GetChapterProgress(opts.userId, prevChapterId)
+	// In case of strange errors we suppose that user doesn't have permissions
+	if err != nil {
+		return false, err
+	}
+
+	return chapterStatus == "completed", nil
+}
+
+
 func GetChapterForUser(opts Options) (ChapterContent, error) {
 	var chapterContent ChapterContent
 
@@ -354,24 +337,15 @@ func GetChapterForUser(opts Options) (ChapterContent, error) {
 		}
 		chapterContent.ChapterId = activeChapterId
 	} else {
-		// We need to check if user has rights to read this chapter
-		prevChapterId, err := GetPrevChapterId(opts.CourseId, opts.ChapterId)
-		if err != nil && err != sql.ErrNoRows {
+		userHasPermissions, err := UserHasPermissionsForChapter(opts)
+		if err != nil {
 			return ChapterContent{}, err
 		}
-		if err != nil && err == sql.ErrNoRows {
-			chapterContent.ChapterId = opts.ChapterId
-		} else {
-			chapterStatus, err := GetChapterProgress(opts.userId, prevChapterId)
-			if err != nil {
-				return ChapterContent{}, err
-			}
 
-			if chapterStatus != "completed" {
-				return ChapterContent{}, errors.New("user didn't complete the previous chapter")
-			}
-			chapterContent.ChapterId = opts.ChapterId
+		if !userHasPermissions {
+			return ChapterContent{}, errors.New("User doesn't have access to chapter")
 		}
+		chapterContent.ChapterId = opts.ChapterId
 	}
 
 	status, title, err := GetChapterInfo(opts.userId, chapterContent.ChapterId)
@@ -408,11 +382,37 @@ func GetCourseProgressForUser(courseId string, userId string) (string, error) {
 
 	for rows.Next() {
 		if err := rows.Scan(&status); err != nil {
-			log.WithFields(log.Fields{
+			Logger.WithFields(log.Fields{
 				"user_id":   userId,
 				"course_id": courseId,
 				"error":     err.Error(),
 			}).Info("Couldn't get status from course_progress table")
+			return "", err
+		}
+	}
+
+	return status, nil
+}
+
+func GetChapterProgressForUser(chapterId string, userId string) (string, error) {
+	query := `
+		SELECT status FROM chapter_progress WHERE chapter_id=$1 AND user_id=$2
+	`
+	var status string
+	rows, err := DB.Query(query, chapterId, userId)
+	if err != nil {
+		return "", err
+	}
+
+	defer rows.Close()
+
+	for rows.Next() {
+		if err := rows.Scan(&status); err != nil {
+			Logger.WithFields(log.Fields{
+				"user_id":   userId,
+				"chapter_id": chapterId,
+				"error":     err.Error(),
+			}).Info("Couldn't get status from chapter_progress table")
 			return "", err
 		}
 	}
@@ -445,7 +445,7 @@ func GetTasks(chapterId string, userId string) []TaskForUser {
 		var task TaskForUser
 
 		if err := rows.Scan(&task.TaskId, &task.Status, &task.UserCode); err != nil {
-			log.WithFields(log.Fields{
+			Logger.WithFields(log.Fields{
 				"user_id": userId,
 				"error":   err.Error(),
 			}).Info("Couldn't parse row from tasks selection for user")
@@ -468,7 +468,7 @@ func UpdateCourseProgressForUser(courseId string, status string, userId string) 
 	`
 	_, err := DB.Exec(query, userId, courseId, status)
 	if err != nil {
-		log.WithFields(log.Fields{
+		Logger.WithFields(log.Fields{
 			"user_id":   userId,
 			"course_id": courseId,
 			"db_error":  err.Error(),
@@ -484,22 +484,20 @@ func HandleGetCourses(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-type", "application/json")
 
 	opts, err := ParseOptions(r)
-	if err != nil {
-		body, _ := json.Marshal(map[string]string{
-			"error": fmt.Sprintf("Invalid request: %s", err),
-		})
-		w.Write(body)
-		return
-	}
 
 	var courses []CourseForUser
 
-	if opts.Status == "all" {
-		courses = GetCoursesForUser(opts.userId)
+	// Case when user is not logged
+	if err != nil {
+		courses = GetCourses()
 	} else {
-		courses = GetCoursesForUserByStatus(opts.userId, opts.Status)
+		if opts.Status == "all" {
+			courses = GetCoursesForUser(opts.userId)
+		} else {
+			courses = GetCoursesForUserByStatus(opts.userId, opts.Status)
+		}
 	}
-
+	
 	for i := 0; i < len(courses); i++ {
 		descr, _ := ReadTextFile(filepath.Join(rootCourses, courses[i].Path, "description.md"))
 		courses[i].Description = descr
@@ -508,7 +506,7 @@ func HandleGetCourses(w http.ResponseWriter, r *http.Request) {
 		courses[i].Icon = iconSvg
 	}
 
-	log.WithFields(log.Fields{
+	Logger.WithFields(log.Fields{
 		"user_id": opts.userId,
 		"status":  opts.Status,
 	}).Info("Successfully got courses")
@@ -538,7 +536,7 @@ func HandleUpdateCourseProgress(w http.ResponseWriter, r *http.Request) {
 
 	curStatus, err := GetCourseProgressForUser(opts.CourseId, opts.userId)
 	if err != nil {
-		log.WithFields(log.Fields{
+		Logger.WithFields(log.Fields{
 			"user_id":   opts.userId,
 			"course_id": opts.CourseId,
 			"error":     err.Error(),
@@ -550,33 +548,18 @@ func HandleUpdateCourseProgress(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if len(curStatus) == 0 && opts.Status == "completed" {
+	if !IsNewStatusValid(curStatus, opts.Status) {
 		json.NewEncoder(w).Encode(map[string]string{
-			"error":         "Couldn't complete course which is not started",
-			"course_status": curStatus,
-		})
-		return
-	}
-
-	if len(curStatus) != 0 && curStatus != "blocked" && opts.Status == "in_progress" {
-		json.NewEncoder(w).Encode(map[string]string{
-			"error":         "Couldn't start course which is already started",
-			"course_status": curStatus,
-		})
-		return
-	}
-
-	if curStatus == opts.Status {
-		json.NewEncoder(w).Encode(map[string]string{
-			"error":         "Course is already in this status",
-			"course_status": curStatus,
+			"error":         "Couldn't change status",
+			"current_status": curStatus,
+			"new_status": opts.Status,
 		})
 		return
 	}
 
 	err = UpdateCourseProgressForUser(opts.CourseId, opts.Status, opts.userId)
 	if err != nil {
-		log.WithFields(log.Fields{
+		Logger.WithFields(log.Fields{
 			"user_id":   opts.userId,
 			"course_id": opts.CourseId,
 			"status":    opts.Status,
@@ -589,10 +572,128 @@ func HandleUpdateCourseProgress(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	Logger.WithFields(log.Fields{
+		"user_id":    opts.userId,
+		"course_id": opts.CourseId,
+	}).Info("Updated course status for user")
+
 	json.NewEncoder(w).Encode(map[string]string{
 		"status": "ok",
 	})
 }
+
+func UpdateChapterStatus(userId string, chapterId string, status string) error {
+	const query = `
+		INSERT INTO chapter_progress(user_id, chapter_id, status) 
+		VALUES($1, $2, $3) 
+		ON CONFLICT ON CONSTRAINT unique_user_chapter_id 
+		DO UPDATE SET
+		status = EXCLUDED.status
+    `
+
+	_, err := DB.Exec(query, userId, chapterId, status)
+	return err
+}
+
+func HandleUpdateChapterProgress(w http.ResponseWriter, r *http.Request) {
+	w.WriteHeader(http.StatusOK)
+	w.Header().Set("Content-type", "application/json")
+
+	opts, err := ParseOptions(r)
+	if err != nil {
+		body, _ := json.Marshal(map[string]string{
+			"error": fmt.Sprintf("Invalid request: %s", err),
+		})
+		w.Write(body)
+		return
+	}
+
+	if len(opts.userId) == 0 || len(opts.ChapterId) == 0 || len(opts.Status) == 0 {
+		json.NewEncoder(w).Encode(map[string]string{
+			"error": "Couldn't get user_id, chapter_id or status",
+		})
+		return
+	}
+
+	curStatus, err := GetChapterProgressForUser(opts.ChapterId, opts.userId)
+	if err != nil {
+		Logger.WithFields(log.Fields{
+			"user_id":   opts.userId,
+			"chapter_id": opts.ChapterId,
+			"error":     err.Error(),
+		}).Error("Couldn't get progress")
+
+		json.NewEncoder(w).Encode(map[string]string{
+			"error": "Couldn't get user progress on chapter",
+		})
+		return
+	}
+
+	if !IsNewStatusValid(curStatus, opts.Status) {
+		json.NewEncoder(w).Encode(map[string]string{
+			"error":         "Couldn't change status",
+			"current_status": curStatus,
+			"new_status": opts.Status,
+		})
+		return
+	}
+
+	userHasPermissions, err := UserHasPermissionsForChapter(opts)
+	if err != nil {
+		json.NewEncoder(w).Encode(map[string]string{
+			"error": "Couldn't get user permissions on chapter",
+		})
+		return
+	}
+
+	if !userHasPermissions {
+		json.NewEncoder(w).Encode(map[string]string{
+			"error": "User doesn't have permissions on chapter",
+		})
+		return
+	}
+
+	if opts.Status == "completed" {
+		tasks := GetTasks(opts.ChapterId, opts.userId)
+
+		for _, task := range tasks {
+			if task.Status != "completed" {
+				json.NewEncoder(w).Encode(map[string]string{
+					"error": "Not all tasks in chapter are completed",
+				})
+				return
+			}
+		}
+	}
+
+	err = UpdateChapterStatus(opts.userId, opts.ChapterId, opts.Status)
+
+	if err != nil {
+		Logger.WithFields(log.Fields{
+		"user_id":    opts.userId,
+		"chapter_id": opts.ChapterId,
+		"db_error":   err.Error(),
+		}).Error("Couldn't update chapter status for user")
+
+		json.NewEncoder(w).Encode(map[string]string{
+			"status": "error",
+		})
+
+		return
+	}
+
+	Logger.WithFields(log.Fields{
+		"user_id":    opts.userId,
+		"chapter_id": opts.ChapterId,
+	}).Info("Updated chapter status for user")
+
+
+	json.NewEncoder(w).Encode(map[string]string{
+		"status": "ok",
+	})
+}
+
+
 
 func HandleGetChapters(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusOK)
@@ -616,7 +717,7 @@ func HandleGetChapters(w http.ResponseWriter, r *http.Request) {
 
 	chapters := GetChaptersForUser(opts.userId, opts.CourseId)
 
-	log.WithFields(log.Fields{
+	Logger.WithFields(log.Fields{
 		"user_id":   opts.userId,
 		"course_id": opts.CourseId,
 	}).Info("Successfully got chapters")
@@ -654,7 +755,7 @@ func HandleGetChapter(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	log.WithFields(log.Fields{
+	Logger.WithFields(log.Fields{
 		"user_id":    opts.userId,
 		"course_id":  opts.CourseId,
 		"chapter_id": opts.ChapterId,
@@ -683,6 +784,14 @@ func HandleGetProgress(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	chapterStatus, err := GetChapterProgress(opts.userId, opts.ChapterId)
+	if err != nil || len(chapterStatus) == 0 || chapterStatus == "not_started" {
+		json.NewEncoder(w).Encode(map[string]string{
+			"error": "User doesn't have permissions on this chapter",
+		})
+		return
+	}
+
 	var userProgress UserProgress
 	tasks := GetTasks(opts.ChapterId, opts.userId)
 	for _, task := range tasks {
@@ -691,7 +800,7 @@ func HandleGetProgress(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	if len(userProgress.NotCompletedTaskIds) > 0 || len(tasks) == 0 {
+	if len(userProgress.NotCompletedTaskIds) > 0 {
 		userProgress.StatusOnChapter = "chapter_not_completed"
 	} else {
 		userProgress.StatusOnChapter = "chapter_completed"
@@ -699,7 +808,7 @@ func HandleGetProgress(w http.ResponseWriter, r *http.Request) {
 		if err != nil && err == sql.ErrNoRows {
 			userProgress.IsCourseCompleted = true
 		} else if err != nil {
-			log.WithFields(log.Fields{
+			Logger.WithFields(log.Fields{
 				"user_id":    opts.userId,
 				"course_id":  opts.CourseId,
 				"chapter_id": opts.ChapterId,

@@ -26,7 +26,7 @@ func extractRunTaskOptions(r *http.Request) (Options, error) {
 	opts, err := ParseOptions(r)
 
 	if err != nil {
-		log.WithFields(log.Fields{
+		Logger.WithFields(log.Fields{
 			"Error":     err,
 			"http_body": r.Body,
 		}).Error("Couldn't parse HTTP request for running task")
@@ -73,7 +73,7 @@ func communicateWatchman(opts Options, c chan RunTaskResult) {
 	resp, err := client.Post(addrWatchman, "application/json", reqBody)
 
 	if err != nil {
-		log.WithFields(log.Fields{
+		Logger.WithFields(log.Fields{
 			"Error": err},
 		).Error("Couldn't send request to watchman")
 
@@ -92,7 +92,7 @@ func communicateWatchman(opts Options, c chan RunTaskResult) {
 
 	body, err := ioutil.ReadAll(resp.Body)
 	if err != nil {
-		log.WithFields(log.Fields{
+		Logger.WithFields(log.Fields{
 			"Error": err,
 		}).Error("Couldn't read body")
 		res.err = err
@@ -103,7 +103,7 @@ func communicateWatchman(opts Options, c chan RunTaskResult) {
 	err = json.Unmarshal(body, &res)
 
 	if err != nil {
-		log.WithFields(log.Fields{
+		Logger.WithFields(log.Fields{
 			"Error": err,
 		}).Error("Couldn't parse json body")
 		res.err = err
@@ -169,11 +169,10 @@ func HandleRunTask(w http.ResponseWriter, r *http.Request) {
 
 	WP.Submit(func() {
 		UpdateTaskStatus(opts.userId, opts.TaskId, res.Status, userSourceCode)
-		UpdateChapterStatus(opts.userId, opts.ChapterId, opts.TaskId, res.Status)
 	})
 
-	log.WithFields(log.Fields{
-		"status": res.Status,
+	Logger.WithFields(log.Fields{
+		"user_code_status": res.Status,
 	}).Info("Successfully communicated watchman")
 
 	json.NewEncoder(w).Encode(res)

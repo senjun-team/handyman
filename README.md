@@ -51,6 +51,8 @@ curl -X POST \
 
 `/get_courses` - получение списка курсов с их характеристиками.
 ```bash
+curl -X POST   "http://localhost:8080/get_courses"
+
 curl -X POST   -d '{"status":"all"}'   "http://localhost:8080/get_courses?user_id=4564"
 ```
 
@@ -58,6 +60,12 @@ curl -X POST   -d '{"status":"all"}'   "http://localhost:8080/get_courses?user_i
 ```bash
 curl -X POST   -d '{"course_id":"rust", "status":"in_progress"}'   "http://localhost:8080/update_course_progress?user_id=4564"
 ```
+
+`/update_chapter_progress` - обновление прогресса пользователя по главе. Например, для кнопки "следующая глава".
+```bash
+curl -X POST   -d '{"chapter_id":"python_chapter_0010", "status":"in_progress"}'   "http://localhost:8080/update_chapter_progress?user_id=300"
+```
+
 
 `/get_chapters` - получение списка глав и их статусов для пользоваетля.
 ```bash
@@ -93,6 +101,10 @@ psql -U postgres
 
 ## Полезные SQL-запросы для отладки и разворачивания базы
 ```sql
+-- db size with indices
+SELECT pg_size_pretty(pg_database_size('senjun'));
+
+
 -- show running queries
 SELECT pid, age(clock_timestamp(), query_start), usename, query 
 FROM pg_stat_activity 

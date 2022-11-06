@@ -7,7 +7,7 @@ import (
 
 func TestGetContainerType(t *testing.T) {
 	chapterId := "python_chapter_0031"
-	plan := "senjun_courses_python"
+	plan := "python"
 	fact := GetContainerType(chapterId)
 
 	if plan != fact {

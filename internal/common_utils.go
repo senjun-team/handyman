@@ -7,7 +7,6 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
-
 	log "github.com/sirupsen/logrus"
 )
 
@@ -89,10 +88,10 @@ func FillOptionsByChapterId(opts *Options) error {
 
 func GetContainerType(chapterId string) string {
 	if strings.HasPrefix(chapterId, "python") {
-		return "senjun_courses_python"
+		return "python"
 	}
 	if strings.HasPrefix(chapterId, "rust") {
-		return "senjun_courses_rust"
+		return "rust"
 	}
 
 	return ""
@@ -125,7 +124,7 @@ func GetPathToChapterText(courseId string, chapterId string) (string, error) {
 func ReadTextFile(path string) (string, error) {
 	content, err := os.ReadFile(path)
 	if err != nil {
-		log.WithFields(log.Fields{
+		Logger.WithFields(log.Fields{
 			"Error":           err,
 			"filepath": path,
 		}).Error("Couldn't read file")
@@ -139,14 +138,45 @@ func InjectCodeToWrapper(opts *Options) error {
 	wrapperPath := GetPathToTaskWrapper(opts)
 	content, err := ReadTextFile(wrapperPath)
 
+	Logger.WithFields(log.Fields{
+		"filepath": wrapperPath,
+		"content": content,
+	}).Info("Read wrapper")
+
 	opts.SourceCode = strings.ReplaceAll(string(content), injectMarker, opts.SourceCode)
+
+	Logger.WithFields(log.Fields{
+		"filepath": wrapperPath,
+		"injected": opts.SourceCode,
+	}).Info("Injected wrapper")
 	return err
 }
+
+func IsNewStatusValid(curStatus string, newStatus string) bool {
+	// Possible statuses:
+	// 'not_started' or empty, 'in_progress', 'blocked', 'completed'
+
+	// In case we want to block any course/chapter/task
+	if newStatus == "blocked" {
+		return true
+	}
+
+	if (len(curStatus) == 0 || curStatus == "not_started") && newStatus == "in_progress" {
+		return true
+	}
+
+	if curStatus == "in_progress" && newStatus == "completed" {
+		return true
+	}
+
+	return false
+}
+
 
 type CourseForUser struct {
 	CourseId        string `json:"course_id"`
 	CourseType      string `json:"type"`
-	Status          string `json:"status"`
+	Status          string `json:"status,omitempty"`
 	Path            string `json:"-"`
 	Title           string `json:"title"`
 	Icon        string `json:"icon"`
