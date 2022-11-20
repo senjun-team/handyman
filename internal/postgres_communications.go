@@ -102,7 +102,7 @@ func GetCourses() []CourseForUser {
 
 		if err := rows.Scan(&course.CourseId, &course.Path, &course.CourseType, &course.Title); err != nil {
 			Logger.WithFields(log.Fields{
-				"error":   err.Error(),
+				"error": err.Error(),
 			}).Info("Couldn't parse row from courses selection")
 			return []CourseForUser{}
 		}
@@ -302,7 +302,6 @@ func GetChapterInfo(userId string, chapterId string) (string, string, error) {
 	return status, title, err
 }
 
-
 func UserHasPermissionsForChapter(opts Options) (bool, error) {
 	prevChapterId, err := GetPrevChapterId(opts.CourseId, opts.ChapterId)
 
@@ -324,7 +323,6 @@ func UserHasPermissionsForChapter(opts Options) (bool, error) {
 	return chapterStatus == "completed", nil
 }
 
-
 func GetChapterForUser(opts Options) (ChapterContent, error) {
 	var chapterContent ChapterContent
 
@@ -343,7 +341,7 @@ func GetChapterForUser(opts Options) (ChapterContent, error) {
 		}
 
 		if !userHasPermissions {
-			return ChapterContent{}, errors.New("User doesn't have access to chapter")
+			return ChapterContent{}, errors.New("user doesn't have access to chapter")
 		}
 		chapterContent.ChapterId = opts.ChapterId
 	}
@@ -409,9 +407,9 @@ func GetChapterProgressForUser(chapterId string, userId string) (string, error) 
 	for rows.Next() {
 		if err := rows.Scan(&status); err != nil {
 			Logger.WithFields(log.Fields{
-				"user_id":   userId,
+				"user_id":    userId,
 				"chapter_id": chapterId,
-				"error":     err.Error(),
+				"error":      err.Error(),
 			}).Info("Couldn't get status from chapter_progress table")
 			return "", err
 		}
@@ -497,7 +495,7 @@ func HandleGetCourses(w http.ResponseWriter, r *http.Request) {
 			courses = GetCoursesForUserByStatus(opts.userId, opts.Status)
 		}
 	}
-	
+
 	for i := 0; i < len(courses); i++ {
 		descr, _ := ReadTextFile(filepath.Join(rootCourses, courses[i].Path, "description.md"))
 		courses[i].Description = descr
@@ -550,9 +548,9 @@ func HandleUpdateCourseProgress(w http.ResponseWriter, r *http.Request) {
 
 	if !IsNewStatusValid(curStatus, opts.Status) {
 		json.NewEncoder(w).Encode(map[string]string{
-			"error":         "Couldn't change status",
+			"error":          "Couldn't change status",
 			"current_status": curStatus,
-			"new_status": opts.Status,
+			"new_status":     opts.Status,
 		})
 		return
 	}
@@ -573,7 +571,7 @@ func HandleUpdateCourseProgress(w http.ResponseWriter, r *http.Request) {
 	}
 
 	Logger.WithFields(log.Fields{
-		"user_id":    opts.userId,
+		"user_id":   opts.userId,
 		"course_id": opts.CourseId,
 	}).Info("Updated course status for user")
 
@@ -618,9 +616,9 @@ func HandleUpdateChapterProgress(w http.ResponseWriter, r *http.Request) {
 	curStatus, err := GetChapterProgressForUser(opts.ChapterId, opts.userId)
 	if err != nil {
 		Logger.WithFields(log.Fields{
-			"user_id":   opts.userId,
+			"user_id":    opts.userId,
 			"chapter_id": opts.ChapterId,
-			"error":     err.Error(),
+			"error":      err.Error(),
 		}).Error("Couldn't get progress")
 
 		json.NewEncoder(w).Encode(map[string]string{
@@ -631,9 +629,9 @@ func HandleUpdateChapterProgress(w http.ResponseWriter, r *http.Request) {
 
 	if !IsNewStatusValid(curStatus, opts.Status) {
 		json.NewEncoder(w).Encode(map[string]string{
-			"error":         "Couldn't change status",
+			"error":          "Couldn't change status",
 			"current_status": curStatus,
-			"new_status": opts.Status,
+			"new_status":     opts.Status,
 		})
 		return
 	}
@@ -670,9 +668,9 @@ func HandleUpdateChapterProgress(w http.ResponseWriter, r *http.Request) {
 
 	if err != nil {
 		Logger.WithFields(log.Fields{
-		"user_id":    opts.userId,
-		"chapter_id": opts.ChapterId,
-		"db_error":   err.Error(),
+			"user_id":    opts.userId,
+			"chapter_id": opts.ChapterId,
+			"db_error":   err.Error(),
 		}).Error("Couldn't update chapter status for user")
 
 		json.NewEncoder(w).Encode(map[string]string{
@@ -687,13 +685,10 @@ func HandleUpdateChapterProgress(w http.ResponseWriter, r *http.Request) {
 		"chapter_id": opts.ChapterId,
 	}).Info("Updated chapter status for user")
 
-
 	json.NewEncoder(w).Encode(map[string]string{
 		"status": "ok",
 	})
 }
-
-
 
 func HandleGetChapters(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusOK)
