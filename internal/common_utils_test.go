@@ -60,7 +60,7 @@ func TestGetPathToTaskWrapper(t *testing.T) {
 	}
 
 	plan := "/data/courses/go/go_chapter_0006/tasks/go_chapter_0006_task_0001/wrapper"
-	fact := GetPathToTaskWrapper(opts)
+	fact := GetPathToTaskWrapper(&opts)
 
 	if plan != fact {
 		t.Fatalf(`Wrong path. Plan: %v Fact: %v`, plan, fact)
@@ -82,7 +82,7 @@ func TestGetPathToChapterText(t *testing.T) {
 	}
 }
 
-func TestgenTaskTmpId(t *testing.T) {
+func TestGenTaskTmpId(t *testing.T) {
 	var opts Options
 	opts.TaskId = "bash_chapter_0008_task_0011"
 	opts.userId = "73563"
