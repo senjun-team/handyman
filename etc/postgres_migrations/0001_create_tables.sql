@@ -85,7 +85,25 @@ INSERT INTO chapters(chapter_id, course_id, title) VALUES
 INSERT INTO tasks(task_id, chapter_id) VALUES
 ('python_chapter_0010_task_0010', 'python_chapter_0010'),
 ('python_chapter_0010_task_0020', 'python_chapter_0010'),
-('python_chapter_0010_task_0030', 'python_chapter_0010');
+('python_chapter_0010_task_0030', 'python_chapter_0010'),
+('python_chapter_0010_task_0040', 'python_chapter_0010'),
+('python_chapter_0010_task_0050', 'python_chapter_0010'),
+('python_chapter_0010_task_0060', 'python_chapter_0010'),
+('python_chapter_0020_task_0010', 'python_chapter_0020'),
+('python_chapter_0020_task_0020', 'python_chapter_0020'),
+('python_chapter_0020_task_0030', 'python_chapter_0020'),
+('python_chapter_0020_task_0040', 'python_chapter_0020'),
+('python_chapter_0020_task_0050', 'python_chapter_0020'),
+('python_chapter_0020_task_0060', 'python_chapter_0020'),
+('python_chapter_0020_task_0070', 'python_chapter_0020'),
+('python_chapter_0020_task_0080', 'python_chapter_0020'),
+('python_chapter_0020_task_0090', 'python_chapter_0020'),
+('python_chapter_0020_task_0100', 'python_chapter_0020'),
+('python_chapter_0020_task_0110', 'python_chapter_0020'),
+('rust_chapter_0020_task_0010', 'rust_chapter_0020'),
+('rust_chapter_0020_task_0020', 'rust_chapter_0020'),
+('rust_chapter_0020_task_0030', 'rust_chapter_0020'),
+('rust_chapter_0020_task_0040', 'rust_chapter_0020');
 
 
 -- FILL TABLES FOR TEST PURPOSES ONLY
