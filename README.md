@@ -24,7 +24,9 @@ go build .
 
 Настроить симлинк на директорию с курсами:
 ```bash
-sudo ln -s /home/your_user/senjun/courses/courses/ /data/courses
+cd /
+sudo mkdir data
+sudo ln -s /home/your_user/senjun/courses/courses/ /data
 ```
 
 Для разработки можно использовать такие IDE как VSCode, LiteIDE и другие.
