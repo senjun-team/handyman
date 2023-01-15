@@ -46,7 +46,7 @@ func extractRunTaskOptions(r *http.Request) (Options, error) {
 
 	sourceCodeDecoded, err := base64.StdEncoding.DecodeString(opts.SourceCodeOriginal)
 	if err != nil {
-		return Options{}, errors.New("couldn't decode string from base64-decoded 'solution_text'")
+		return Options{}, errors.New("couldn't decode string from base64-encoded 'solution_text'")
 	}
 
 	opts.SourceCodeOriginal = string(sourceCodeDecoded)
