@@ -44,11 +44,11 @@ go mod tidy
 ```
 
 ## Апишки
-`/run_task` - запуск решения пользователя для задачи курса.
+`/run_task` - запуск решения пользователя для задачи курса. Решение пользователя закодировано в base64.
 ```bash
 curl -X POST \
-  -d '{"task_id":"python_chapter_0010_task_0010", "solution_text":"err_service_unavailable = 503"}' \
-  "http://localhost:8080/run_task?user_id=4564"
+  -d '{"task_id":"python_chapter_0010_task_0010", "solution_text":"ZXJyX3NlcnZpY2VfdW5hdmFpbGFibGUgPSA1MDM="}' \
+  "http://localhost:8080/run_task?user_id=100"
 ```
 
 `/get_courses` - получение списка курсов с их характеристиками.

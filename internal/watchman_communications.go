@@ -2,6 +2,7 @@ package internal
 
 import (
 	"bytes"
+	"encoding/base64"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -42,6 +43,13 @@ func extractRunTaskOptions(r *http.Request) (Options, error) {
 	if len(opts.SourceCodeOriginal) == 0 {
 		return Options{}, errors.New("empty source code")
 	}
+
+	sourceCodeDecoded, err := base64.StdEncoding.DecodeString(opts.SourceCodeOriginal)
+	if err != nil {
+		return Options{}, errors.New("couldn't decode string from base64-encoded 'solution_text'")
+	}
+
+	opts.SourceCodeOriginal = string(sourceCodeDecoded)
 
 	opts.containerType = GetContainerType(opts.ChapterId)
 
