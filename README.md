@@ -55,17 +55,17 @@ curl -X POST \
 ```bash
 curl -X POST   "http://localhost:8080/get_courses"
 
-curl -X POST   -d '{"status":"all"}'   "http://localhost:8080/get_courses?user_id=4564"
+curl -X POST   -d '{"status":"all"}'   "http://localhost:8080/get_courses?user_id=100"
 ```
 
 `/update_course_progress` - обновление прогресса пользователя по курсу. Например, для кнопок "начать" и "завершить".
 ```bash
-curl -X POST   -d '{"course_id":"rust", "status":"in_progress"}'   "http://localhost:8080/update_course_progress?user_id=4564"
+curl -X POST   -d '{"course_id":"python", "status":"in_progress"}'   "http://localhost:8080/update_course_progress?user_id=100"
 ```
 
 `/update_chapter_progress` - обновление прогресса пользователя по главе. Например, для кнопки "следующая глава".
 ```bash
-curl -X POST   -d '{"chapter_id":"python_chapter_0010", "status":"in_progress"}'   "http://localhost:8080/update_chapter_progress?user_id=300"
+curl -X POST   -d '{"chapter_id":"python_chapter_0010", "status":"in_progress"}'   "http://localhost:8080/update_chapter_progress?user_id=100"
 ```
 
 
@@ -76,7 +76,7 @@ curl -X POST   -d '{"course_id":"python"}'   "http://localhost:8080/get_chapters
 
 `/get_chapter` - получение главы с задачами и их статусами для пользователя.
 ```bash
-curl -X POST   -d '{"chapter_id":"python_chapter_0010"}'   "http://localhost:8080/get_chapter?user_id=4564"
+curl -X POST   -d '{"chapter_id":"python_chapter_0010"}'   "http://localhost:8080/get_chapter?user_id=100"
 
 curl -X POST   -d '{"course_id":"python"}'   "http://localhost:8080/get_chapter?user_id=4564"
 ```
@@ -88,7 +88,7 @@ curl -X POST   -d '{"chapter_id":"python_chapter_0010"}'   "http://localhost:808
 
 `/get_active_chapter` - получение первой по списку главы с задачами и их статусами для пользователя, которая находится в статусе `not_started` или `in_progress`
 ```bash
-curl -X POST   -d '{"course_id":"python"}'   "http://localhost:8080/get_active_chapter?user_id=4564"
+curl -X POST   -d '{"course_id":"python"}'   "http://localhost:8080/get_active_chapter?user_id=100"
 ```
 
 ## Настройка PostgreSQL в докере для отладки

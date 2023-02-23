@@ -744,7 +744,8 @@ func HandleGetChapter(w http.ResponseWriter, r *http.Request) {
 
 	if err != nil {
 		body, _ := json.Marshal(map[string]string{
-			"error": fmt.Sprintf("Couldn't get chapter for user: %s", err),
+			"error": fmt.Sprintf("Couldn't get %s chapter for user %s (chapter %s): %s",
+				opts.CourseId, opts.userId, opts.ChapterId, err),
 		})
 		w.Write(body)
 		return

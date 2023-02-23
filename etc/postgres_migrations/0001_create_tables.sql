@@ -69,42 +69,6 @@ CREATE UNIQUE INDEX CONCURRENTLY unique_user_task_id ON task_progress(user_id, t
 ALTER TABLE task_progress ADD CONSTRAINT unique_user_task_id UNIQUE USING INDEX unique_user_task_id;
 ALTER TABLE task_progress OWNER TO senjun;
 
--- FILL TABLES
-
-INSERT INTO courses(course_id, title, path_on_disk) VALUES
-('python', 'Python', 'python'),
-('rust', 'Rust', 'rust');
-
-INSERT INTO chapters(chapter_id, course_id, title) VALUES
-('python_chapter_0010', 'python', 'Ключевые факты'),
-('python_chapter_0020', 'python', 'Синтаксис'),
-('python_chapter_0030', 'python', 'Синтаксис: новые фишки'),
-('rust_chapter_0010', 'rust', 'Введение'),
-('rust_chapter_0020', 'rust', 'Переменные и базовые типы данных');
-
-INSERT INTO tasks(task_id, chapter_id) VALUES
-('python_chapter_0010_task_0010', 'python_chapter_0010'),
-('python_chapter_0010_task_0020', 'python_chapter_0010'),
-('python_chapter_0010_task_0030', 'python_chapter_0010'),
-('python_chapter_0010_task_0040', 'python_chapter_0010'),
-('python_chapter_0010_task_0050', 'python_chapter_0010'),
-('python_chapter_0010_task_0060', 'python_chapter_0010'),
-('python_chapter_0020_task_0010', 'python_chapter_0020'),
-('python_chapter_0020_task_0020', 'python_chapter_0020'),
-('python_chapter_0020_task_0030', 'python_chapter_0020'),
-('python_chapter_0020_task_0040', 'python_chapter_0020'),
-('python_chapter_0020_task_0050', 'python_chapter_0020'),
-('python_chapter_0020_task_0060', 'python_chapter_0020'),
-('python_chapter_0020_task_0070', 'python_chapter_0020'),
-('python_chapter_0020_task_0080', 'python_chapter_0020'),
-('python_chapter_0020_task_0090', 'python_chapter_0020'),
-('python_chapter_0020_task_0100', 'python_chapter_0020'),
-('python_chapter_0020_task_0110', 'python_chapter_0020'),
-('rust_chapter_0020_task_0010', 'rust_chapter_0020'),
-('rust_chapter_0020_task_0020', 'rust_chapter_0020'),
-('rust_chapter_0020_task_0030', 'rust_chapter_0020'),
-('rust_chapter_0020_task_0040', 'rust_chapter_0020');
-
 
 -- FILL TABLES FOR TEST PURPOSES ONLY
 
