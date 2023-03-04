@@ -632,6 +632,7 @@ func HandleUpdateChapterProgress(w http.ResponseWriter, r *http.Request) {
 			"error":          "Couldn't change status",
 			"current_status": curStatus,
 			"new_status":     opts.Status,
+			"course_id":      opts.CourseId,
 		})
 		return
 	}
@@ -674,7 +675,8 @@ func HandleUpdateChapterProgress(w http.ResponseWriter, r *http.Request) {
 		}).Error("Couldn't update chapter status for user")
 
 		json.NewEncoder(w).Encode(map[string]string{
-			"status": "error",
+			"status":    "error",
+			"course_id": opts.CourseId,
 		})
 
 		return
@@ -686,7 +688,8 @@ func HandleUpdateChapterProgress(w http.ResponseWriter, r *http.Request) {
 	}).Info("Updated chapter status for user")
 
 	json.NewEncoder(w).Encode(map[string]string{
-		"status": "ok",
+		"status":    "ok",
+		"course_id": opts.CourseId,
 	})
 }
 
@@ -818,6 +821,7 @@ func HandleGetProgress(w http.ResponseWriter, r *http.Request) {
 		} else {
 			userProgress.IsCourseCompleted = false
 			userProgress.NextChapterId = nextChapterId
+			userProgress.CourseId = opts.CourseId
 		}
 	}
 

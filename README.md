@@ -83,7 +83,7 @@ curl -X POST   -d '{"course_id":"python"}'   "http://localhost:8080/get_chapter?
 
 `/get_progress` - получение прогресса пользователя по главе.
 ```bash
-curl -X POST   -d '{"chapter_id":"python_chapter_0010"}'   "http://localhost:8080/get_progress?user_id=4564"
+curl -X POST   -d '{"chapter_id":"python_chapter_0010"}'   "http://localhost:8080/get_progress?user_id=100"
 ```
 
 `/get_active_chapter` - получение первой по списку главы с задачами и их статусами для пользователя, которая находится в статусе `not_started` или `in_progress`

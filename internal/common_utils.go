@@ -122,9 +122,10 @@ func GetPathToTestWrapper(opts *Options) string {
 
 func GetPathToRunWrapper(opts *Options) string {
 	pathRun := filepath.Join(rootCourses, opts.CourseId, opts.ChapterId, "tasks", opts.TaskId, "wrapper_run")
+
 	_, err := os.Stat(pathRun)
 
-	if os.IsExist(err) {
+	if err == nil {
 		return pathRun
 	}
 
@@ -226,4 +227,5 @@ type UserProgress struct {
 	NotCompletedTaskIds []string `json:"not_completed_tasks,omitempty"`
 	NextChapterId       string   `json:"next_chapter_id,omitempty"`
 	IsCourseCompleted   bool     `json:"is_course_completed,omitempty"`
+	CourseId            string   `json:"course_id,omitempty"`
 }
