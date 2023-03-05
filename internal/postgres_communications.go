@@ -497,10 +497,10 @@ func HandleGetCourses(w http.ResponseWriter, r *http.Request) {
 	}
 
 	for i := 0; i < len(courses); i++ {
-		descr, _ := ReadTextFile(filepath.Join(rootCourses, courses[i].Path, "description.md"))
+		descr, _ := ReadTextFile(filepath.Join(courses[i].Path, "description.md"))
 		courses[i].Description = descr
 
-		iconSvg, _ := ReadTextFile(filepath.Join(rootCourses, courses[i].Path, "icon.svg"))
+		iconSvg, _ := ReadTextFile(filepath.Join(courses[i].Path, "icon.svg"))
 		courses[i].Icon = iconSvg
 	}
 
