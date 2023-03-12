@@ -71,7 +71,7 @@ curl -X POST   -d '{"chapter_id":"python_chapter_0010", "status":"in_progress"}'
 
 `/get_chapters` - получение списка глав и их статусов для пользоваетля.
 ```bash
-curl -X POST   -d '{"course_id":"python"}'   "http://localhost:8080/get_chapters?user_id=4564"
+curl -X POST   -d '{"course_id":"python"}'   "http://localhost:8080/get_chapters?user_id=100"
 ```
 
 `/get_chapter` - получение главы с задачами и их статусами для пользователя.

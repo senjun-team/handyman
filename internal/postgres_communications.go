@@ -184,6 +184,40 @@ func GetCoursesForUserByStatus(userId string, status string) []CourseForUser {
 	return courses
 }
 
+func GetChapters(courseId string) []ChapterForUser {
+	query := `
+		SELECT
+		chapters.chapter_id, chapters.title, 
+		'not_started' as status
+		FROM chapters
+		WHERE course_id=$1 ORDER BY chapters.chapter_id
+	`
+
+	rows, err := DB.Query(query, courseId)
+	if err != nil {
+		return []ChapterForUser{}
+	}
+
+	defer rows.Close()
+
+	chapters := []ChapterForUser{}
+
+	for rows.Next() {
+		var chapter ChapterForUser
+
+		if err := rows.Scan(&chapter.ChapterId, &chapter.Title, &chapter.Status); err != nil {
+			Logger.WithFields(log.Fields{
+				"error": err.Error(),
+			}).Error("Couldn't parse row from chapters selection")
+			return []ChapterForUser{}
+		}
+
+		chapters = append(chapters, chapter)
+	}
+
+	return chapters
+}
+
 func GetChaptersForUser(userId string, courseId string) []ChapterForUser {
 	query := `
 		SELECT
@@ -192,7 +226,7 @@ func GetChaptersForUser(userId string, courseId string) []ChapterForUser {
 		FROM chapters
 		LEFT JOIN chapter_progress ON
 		chapters.chapter_id = chapter_progress.chapter_id AND chapter_progress.user_id=$1
-		WHERE  course_id=$2 ORDER BY chapters.chapter_id
+		WHERE course_id=$2 ORDER BY chapters.chapter_id
 	`
 
 	rows, err := DB.Query(query, userId, courseId)
@@ -706,10 +740,21 @@ func HandleGetChapters(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if len(opts.userId) == 0 || len(opts.CourseId) == 0 {
+	if len(opts.CourseId) == 0 {
 		json.NewEncoder(w).Encode(map[string]string{
-			"error": "Couldn't get user_id or course_id",
+			"error": "Couldn't get course_id in get_chapters",
 		})
+		return
+	}
+
+	if len(opts.userId) == 0 {
+		chapters := GetChapters(opts.CourseId)
+
+		Logger.WithFields(log.Fields{
+			"course_id": opts.CourseId,
+		}).Info("Successfully got chapters")
+
+		json.NewEncoder(w).Encode(chapters)
 		return
 	}
 

@@ -34,9 +34,6 @@ func ParseOptions(r *http.Request) (Options, error) {
 	}
 
 	opts.userId = GetUserId(r)
-	if len(opts.userId) == 0 {
-		return Options{}, errors.New("invalid user id")
-	}
 
 	if len(opts.TaskId) > 0 {
 		err := FillOptionsByTaskId(&opts)
