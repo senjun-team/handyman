@@ -149,6 +149,12 @@ func GetCoursesForUser(userId string) []CourseForUser {
 	return courses
 }
 
+func GetCourseStatsForUser(userId string, courseId string) CourseStatus {
+	var courseStatus CourseStatus
+	return courseStatus
+
+}
+
 func GetCoursesForUserByStatus(userId string, status string) []CourseForUser {
 	query := `
 		SELECT courses.course_id, courses.path_on_disk, courses.type, courses.title, courses.tags
@@ -880,6 +886,28 @@ func HandleGetProgress(w http.ResponseWriter, r *http.Request) {
 	}
 
 	json.NewEncoder(w).Encode(userProgress)
+}
+
+func HandleCourseStats(w http.ResponseWriter, r *http.Request) {
+	w.WriteHeader(http.StatusOK)
+	w.Header().Set("Content-type", "application/json")
+
+	opts, err := ParseOptions(r)
+	if err != nil {
+		body, _ := json.Marshal(map[string]string{
+			"error": fmt.Sprintf("Invalid request: %s", err),
+		})
+		w.Write(body)
+		return
+	}
+
+	if len(opts.userId) == 0 || len(opts.CourseId) == 0 {
+		json.NewEncoder(w).Encode(map[string]string{
+			"error": "Couldn't get user_id or course_id",
+		})
+		return
+	}
+
 }
 
 func HandleGetActiveChapter(w http.ResponseWriter, r *http.Request) {

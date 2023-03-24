@@ -196,6 +196,12 @@ type CourseForUser struct {
 	Tags        string `json:"tags"`
 }
 
+type CourseStatus struct {
+	CourseId         string `json:"course_id"`
+	FinishedChapters int    `json:"finished_chapters"`
+	TotalChapters    int    `json:"total_chapters"`
+}
+
 type ChapterForUser struct {
 	ChapterId string `json:"chapter_id"`
 	Status    string `json:"status"`

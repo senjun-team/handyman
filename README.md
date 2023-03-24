@@ -89,6 +89,12 @@ curl -X POST   -d '{"chapter_id":"python_chapter_0010"}'   "http://localhost:808
 curl -X POST   -d '{"course_id":"python"}'   "http://localhost:8080/get_active_chapter?user_id=100"
 ```
 
+`/course_stats` - статистика по прохождению курса для пользователя. Сколько глав пройдено, общее количество глав. Нужна для страницы "прогресс" на сайте.
+```bash
+curl -X POST   -d '{"course_id":"python"}'   "http://localhost:8080/course_status?user_id=100"
+```
+
+
 ## Настройка PostgreSQL в докере для отладки
 Чтобы начать работать с handyman, можно запустить контейнер  с постгресом:
 ```bash
