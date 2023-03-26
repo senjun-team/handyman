@@ -197,8 +197,10 @@ type CourseForUser struct {
 
 type CourseStatus struct {
 	CourseId         string `json:"course_id"`
-	FinishedChapters int    `json:"finished_chapters"`
+	Title            string `json:"title"`
 	TotalChapters    int    `json:"total_chapters"`
+	FinishedChapters int    `json:"finished_chapters"`
+	Status           string `json:"status,omitempty"`
 }
 
 type ChapterForUser struct {

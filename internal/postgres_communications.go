@@ -517,6 +517,42 @@ func UpdateCourseProgressForUser(courseId string, status string, userId string) 
 	return nil
 }
 
+func GetCourseStatuses(userId string) []CourseStatus {
+	query := `
+	select course_id, 
+	(select title from courses where courses.course_id = course_progress.course_id) as title, 
+	(select count(*) from chapters where chapters.course_id = course_progress.course_id) as chapters_total,
+	(select count(*) from chapter_progress where chapter_progress.user_id = $1 and chapter_progress.status = 'completed') as chapters_completed,
+	status from course_progress
+	where user_id = $1 and status in ('in_progress', 'completed')
+	`
+
+	rows, err := DB.Query(query, userId)
+	if err != nil {
+		return []CourseStatus{}
+	}
+
+	defer rows.Close()
+
+	courseStatuses := []CourseStatus{}
+
+	for rows.Next() {
+		var cs CourseStatus
+
+		if err := rows.Scan(&cs.CourseId, &cs.Title, &cs.TotalChapters, &cs.FinishedChapters, &cs.Status); err != nil {
+			Logger.WithFields(log.Fields{
+				"user_id": userId,
+				"error":   err.Error(),
+			}).Info("Couldn't parse row from courses selection for user")
+			return []CourseStatus{}
+		}
+
+		courseStatuses = append(courseStatuses, cs)
+	}
+
+	return courseStatuses
+}
+
 func HandleGetCourses(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusOK)
 	w.Header().Set("Content-type", "application/json")
@@ -885,7 +921,7 @@ func HandleGetProgress(w http.ResponseWriter, r *http.Request) {
 	json.NewEncoder(w).Encode(userProgress)
 }
 
-func HandleCourseStats(w http.ResponseWriter, r *http.Request) {
+func HandleCoursesStats(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusOK)
 	w.Header().Set("Content-type", "application/json")
 
@@ -898,13 +934,15 @@ func HandleCourseStats(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if len(opts.userId) == 0 || len(opts.CourseId) == 0 {
+	if len(opts.userId) == 0 {
 		json.NewEncoder(w).Encode(map[string]string{
-			"error": "Couldn't get user_id or course_id",
+			"error": "Couldn't get user_id",
 		})
 		return
 	}
 
+	courseStatuses := GetCourseStatuses(opts.userId)
+	json.NewEncoder(w).Encode(courseStatuses)
 }
 
 func HandleGetActiveChapter(w http.ResponseWriter, r *http.Request) {
