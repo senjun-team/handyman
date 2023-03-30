@@ -99,6 +99,19 @@ curl -X POST   -d '{}'   "http://localhost:8080/courses_stats?user_id=100"
 [{"course_id":"python","title":"Python","total_chapters":6,"finished_chapters":1,"status":"in_progress"}]
 ```
 
+`/get_task` - получение статуса задачи для пользователя: статус, текст решения.
+```bash
+curl -X POST   -d '{"task_id":"python_chapter_0010_task_0020"}'   "http://localhost:8080/get_task?user_id=100"
+```
+Пример удачного ответа:
+```json
+{"task_id":"python_chapter_0010_task_0020","task_code":"print(\"Returned HTTP code \" + str(200))","status":"completed"}
+```
+Пример ответа с ошибкой (если что-то пошло не так):
+```json
+{"error":"Couldn't get task details for: python_chapter_0010_task_0020"}
+```
+
 
 ## Настройка PostgreSQL в докере для отладки
 Чтобы начать работать с handyman, можно запустить контейнер  с постгресом:

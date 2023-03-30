@@ -56,6 +56,7 @@ func main() {
 
 	r.HandleFunc("/get_active_chapter", internal.HandleGetActiveChapter)
 	r.HandleFunc("/courses_stats", internal.HandleCoursesStats)
+	r.HandleFunc("/get_task", internal.HandleGetTask)
 
 	srv := &http.Server{
 		Handler:      r,
