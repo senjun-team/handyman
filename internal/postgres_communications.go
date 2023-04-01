@@ -601,17 +601,8 @@ func HandleGetCourses(w http.ResponseWriter, r *http.Request) {
 
 	// Case when user is not authorized
 	if len(opts.userId) == 0 {
-		Logger.WithFields(log.Fields{
-			"status": opts.Status,
-		}).Info("Getting courses for not authorized user")
-
 		courses = GetCourses()
 	} else {
-		Logger.WithFields(log.Fields{
-			"status":  opts.Status,
-			"user_id": opts.userId,
-		}).Info("Getting courses for user")
-
 		if opts.Status == "all" {
 			courses = GetCoursesForUser(opts.userId)
 		} else {
@@ -619,19 +610,15 @@ func HandleGetCourses(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	Logger.WithFields(log.Fields{
-		"courses_len": len(courses),
-	}).Info("Got courses from db")
-
 	for i := 0; i < len(courses); i++ {
 		descr, _ := ReadTextFile(filepath.Join(courses[i].Path, "description.md"))
 		courses[i].Description = descr
 	}
 
 	Logger.WithFields(log.Fields{
-		"user_id": opts.userId,
-		"status":  opts.Status,
-		"courses": courses,
+		"user_id":     opts.userId,
+		"status":      opts.Status,
+		"courses_len": len(courses),
 	}).Info("Successfully got courses")
 
 	json.NewEncoder(w).Encode(courses)
@@ -936,7 +923,7 @@ func HandleGetProgress(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	if len(userProgress.NotCompletedTaskIds) > 0 {
+	if len(userProgress.NotCompletedTaskIds) > 0 && chapterStatus != "completed" {
 		userProgress.StatusOnChapter = "chapter_not_completed"
 	} else {
 		userProgress.StatusOnChapter = "chapter_completed"
