@@ -1,6 +1,7 @@
 package internal
 
 import (
+	"context"
 	"database/sql"
 	"encoding/json"
 	"errors"
@@ -553,6 +554,324 @@ func GetCourseStatuses(userId string) []CourseStatus {
 	return courseStatuses
 }
 
+func MergeUserCourses(tx *sql.Tx, ctx context.Context, userIdCur int, userIdOld int) int {
+	query := `
+	SELECT course_id, status FROM course_progress WHERE user_id = $1
+	`
+
+	rows, err := DB.Query(query, userIdOld)
+	if err != nil {
+		Logger.WithFields(log.Fields{
+			"user_id_old": userIdOld,
+			"error":       err.Error(),
+		}).Warning("Couldn't get course_progress")
+		return -1
+	}
+
+	defer rows.Close()
+
+	for rows.Next() {
+		var courseId string
+		var status string
+		if err := rows.Scan(&courseId, &status); err != nil {
+			Logger.WithFields(log.Fields{
+				"user_id_old": userIdOld,
+				"error":       err.Error(),
+			}).Warning("Couldn't get row from course_progress")
+			return -1
+		}
+
+		query = `
+			INSERT INTO 
+			course_progress(user_id, course_id, status)
+			VALUES($1, $2, $3)
+			ON CONFLICT ON CONSTRAINT unique_user_course_id
+			DO UPDATE SET 
+			status = max_edu_status(EXCLUDED.status, course_progress.status)
+		`
+		_, err := tx.ExecContext(ctx, query, userIdCur, courseId, status)
+		if err != nil {
+			Logger.WithFields(log.Fields{
+				"user_id_cur": userIdCur,
+				"course_id":   courseId,
+				"status":      status,
+				"db_error":    err.Error(),
+			}).Error("Couldn't update course status for user")
+			return -1
+		}
+	}
+
+	query = `DELETE FROM course_progress WHERE user_id = $1`
+	_, err = tx.ExecContext(ctx, query, userIdOld)
+	if err != nil {
+		Logger.WithFields(log.Fields{
+			"user_id_old": userIdOld,
+			"db_error":    err.Error(),
+		}).Error("Couldn't delete course records for user")
+		return -1
+	}
+
+	return 0
+}
+
+func MergeUserChapters(tx *sql.Tx, ctx context.Context, userIdCur int, userIdOld int) int {
+	query := `
+	SELECT chapter_id, status FROM chapter_progress WHERE user_id = $1
+	`
+
+	rows, err := DB.Query(query, userIdOld)
+	if err != nil {
+		Logger.WithFields(log.Fields{
+			"user_id_old": userIdOld,
+			"error":       err.Error(),
+		}).Warning("Couldn't get chapter_progress")
+		return -1
+	}
+
+	defer rows.Close()
+
+	for rows.Next() {
+		var chapterId string
+		var status string
+		if err := rows.Scan(&chapterId, &status); err != nil {
+			Logger.WithFields(log.Fields{
+				"user_id_old": userIdOld,
+				"error":       err.Error(),
+			}).Warning("Couldn't get row from chapter_progress")
+			return -1
+		}
+
+		query = `
+			INSERT INTO 
+			chapter_progress(user_id, chapter_id, status)
+			VALUES($1, $2, $3)
+			ON CONFLICT ON CONSTRAINT unique_user_chapter_id
+			DO UPDATE SET 
+			status = max_edu_status(EXCLUDED.status, chapter_progress.status)
+		`
+		_, err := tx.ExecContext(ctx, query, userIdCur, chapterId, status)
+		if err != nil {
+			Logger.WithFields(log.Fields{
+				"user_id_cur": userIdCur,
+				"chapter_id":  chapterId,
+				"status":      status,
+				"db_error":    err.Error(),
+			}).Error("Couldn't update chapter status for user")
+			return -1
+		}
+	}
+
+	query = `DELETE FROM chapter_progress WHERE user_id = $1`
+	_, err = tx.ExecContext(ctx, query, userIdOld)
+	if err != nil {
+		Logger.WithFields(log.Fields{
+			"user_id_old": userIdOld,
+			"db_error":    err.Error(),
+		}).Error("Couldn't delete chapter records for user")
+		return -1
+	}
+
+	return 0
+}
+
+func MergeUserTasks(tx *sql.Tx, ctx context.Context, userIdCur int, userIdOld int) int {
+	query := `
+	SELECT task_id, status, solution_text, attempts_count FROM task_progress WHERE user_id = $1
+	`
+
+	rows, err := DB.Query(query, userIdOld)
+	if err != nil {
+		Logger.WithFields(log.Fields{
+			"user_id_old": userIdOld,
+			"error":       err.Error(),
+		}).Warning("Couldn't get task_progress")
+		return -1
+	}
+
+	defer rows.Close()
+
+	for rows.Next() {
+		var taskId string
+		var status string
+		var solutionText string
+		var attemptsCount int
+		if err := rows.Scan(&taskId, &status, &solutionText, &attemptsCount); err != nil {
+			Logger.WithFields(log.Fields{
+				"user_id_old": userIdOld,
+				"error":       err.Error(),
+			}).Warning("Couldn't get row from task_progress")
+			return -1
+		}
+
+		query = `
+			INSERT INTO 
+			task_progress(user_id, task_id, status, solution_text, attempts_count)
+			VALUES($1, $2, $3, $4, $5)
+			ON CONFLICT ON CONSTRAINT unique_user_task_id
+			DO UPDATE SET 
+			status = max_edu_status(EXCLUDED.status, task_progress.status),
+			attempts_count = task_progress.attempts_count + EXCLUDED.attempts_count,
+			solution_text = best_solution(EXCLUDED.status, EXCLUDED.solution_text, task_progress.status, task_progress.solution_text)
+		`
+		_, err := tx.ExecContext(ctx, query, userIdCur, taskId, status, solutionText, attemptsCount)
+		if err != nil {
+			Logger.WithFields(log.Fields{
+				"user_id_cur": userIdCur,
+				"task_id":     taskId,
+				"status":      status,
+				"db_error":    err.Error(),
+			}).Error("Couldn't update task status for user")
+			return -1
+		}
+	}
+
+	query = `DELETE FROM task_progress WHERE user_id = $1`
+	_, err = tx.ExecContext(ctx, query, userIdOld)
+	if err != nil {
+		Logger.WithFields(log.Fields{
+			"user_id_old": userIdOld,
+			"db_error":    err.Error(),
+		}).Error("Couldn't delete task records for user")
+		return -1
+	}
+
+	return 0
+}
+
+func SplitUsers(userIdCur int, userIdNew int) int {
+	ctx := context.Background()
+	tx, err := DB.BeginTx(ctx, nil)
+
+	if err != nil {
+		Logger.WithFields(log.Fields{
+			"user_id_cur": userIdCur,
+			"user_id_new": userIdNew,
+			"db_error":    err.Error(),
+		}).Error("Couldn't start transaction in SplitUsers")
+		return -1
+	}
+
+	// Split courses
+	query := `INSERT INTO course_progress(user_id, course_id, status) 
+	SELECT $2, course_id, status FROM course_progress WHERE user_id = $1`
+
+	_, err = tx.ExecContext(ctx, query, userIdCur, userIdNew)
+
+	if err != nil {
+		Logger.WithFields(log.Fields{
+			"user_id_cur": userIdCur,
+			"user_id_new": userIdNew,
+			"db_error":    err.Error(),
+		}).Error("Couldn't split course records for user")
+		return -1
+	}
+
+	// Split chapters
+	query = `INSERT INTO chapter_progress(user_id, chapter_id, status) 
+	SELECT $2, chapter_id, status FROM chapter_progress WHERE user_id = $1`
+
+	_, err = tx.ExecContext(ctx, query, userIdCur, userIdNew)
+
+	if err != nil {
+		Logger.WithFields(log.Fields{
+			"user_id_cur": userIdCur,
+			"user_id_new": userIdNew,
+			"db_error":    err.Error(),
+		}).Error("Couldn't split chapter records for user")
+		return -1
+	}
+
+	// Split tasks
+	query = `INSERT INTO task_progress(user_id, task_id, status, solution_text, attempts_count) 
+	SELECT $2, task_id, status, solution_text, attempts_count FROM task_progress WHERE user_id = $1`
+
+	_, err = tx.ExecContext(ctx, query, userIdCur, userIdNew)
+
+	if err != nil {
+		Logger.WithFields(log.Fields{
+			"user_id_cur": userIdCur,
+			"user_id_new": userIdNew,
+			"db_error":    err.Error(),
+		}).Error("Couldn't split task records for user")
+		return -1
+	}
+
+	err = tx.Commit()
+	if err != nil {
+		Logger.WithFields(log.Fields{
+			"user_id_cur": userIdCur,
+			"user_id_new": userIdNew,
+			"db_error":    err.Error(),
+		}).Error("Couldn't commit transaction in SplitUsers")
+		return -1
+	}
+
+	Logger.WithFields(log.Fields{
+		"user_id_cur": userIdCur,
+		"user_id_new": userIdNew,
+	}).Info("Split user progress in SplitUsers")
+
+	return 0
+}
+
+func MergeUsers(userIdCur int, userIdOld int) int {
+	ctx := context.Background()
+	tx, err := DB.BeginTx(ctx, nil)
+
+	if err != nil {
+		Logger.WithFields(log.Fields{
+			"user_id_cur": userIdCur,
+			"user_id_old": userIdOld,
+			"db_error":    err.Error(),
+		}).Error("Couldn't start transaction in MergeUsers")
+		return -1
+	}
+
+	if MergeUserCourses(tx, ctx, userIdCur, userIdOld) != 0 {
+		tx.Rollback()
+		Logger.WithFields(log.Fields{
+			"user_id_cur": userIdCur,
+			"user_id_old": userIdOld,
+		}).Error("Couldn't merge user courses in MergeUsers")
+		return -1
+	}
+
+	if MergeUserChapters(tx, ctx, userIdCur, userIdOld) != 0 {
+		tx.Rollback()
+		Logger.WithFields(log.Fields{
+			"user_id_cur": userIdCur,
+			"user_id_old": userIdOld,
+		}).Error("Couldn't merge user chapters in MergeUsers")
+		return -1
+	}
+
+	if MergeUserTasks(tx, ctx, userIdCur, userIdOld) != 0 {
+		tx.Rollback()
+		Logger.WithFields(log.Fields{
+			"user_id_cur": userIdCur,
+			"user_id_old": userIdOld,
+		}).Error("Couldn't merge user tasks in MergeUsers")
+		return -1
+	}
+
+	err = tx.Commit()
+	if err != nil {
+		Logger.WithFields(log.Fields{
+			"user_id_cur": userIdCur,
+			"user_id_old": userIdOld,
+			"db_error":    err.Error(),
+		}).Error("Couldn't commit transaction in MergeUsers")
+		return -1
+	}
+
+	Logger.WithFields(log.Fields{
+		"user_id_cur": userIdCur,
+		"user_id_old": userIdOld,
+	}).Info("Merged user progress in MergeUsers")
+
+	return 0
+}
+
 func GetTaskForUser(userId string, taskId string) (TaskForUser, error) {
 	query := `
 	select status, solution_text from task_progress where user_id = $1 and task_id = $2
@@ -974,6 +1293,47 @@ func HandleCoursesStats(w http.ResponseWriter, r *http.Request) {
 
 	courseStatuses := GetCourseStatuses(opts.userId)
 	json.NewEncoder(w).Encode(courseStatuses)
+}
+
+func HandleMergeUsers(w http.ResponseWriter, r *http.Request) {
+	w.WriteHeader(http.StatusOK)
+	w.Header().Set("Content-type", "application/json")
+
+	opts, err := ParseOptionsTg(r)
+	if err != nil {
+		body, _ := json.Marshal(map[string]string{
+			"error": fmt.Sprintf("Invalid request: %s", err),
+		})
+		w.Write(body)
+		return
+	}
+
+	status := MergeUsers(opts.UserIdCur, opts.UserIdOld)
+
+	body, _ := json.Marshal(map[string]int{
+		"status": status,
+	})
+	w.Write(body)
+}
+
+func HandleSplitUsers(w http.ResponseWriter, r *http.Request) {
+	w.WriteHeader(http.StatusOK)
+	w.Header().Set("Content-type", "application/json")
+
+	opts, err := ParseOptionsTg(r)
+	if err != nil {
+		body, _ := json.Marshal(map[string]string{
+			"error": fmt.Sprintf("Invalid request: %s", err),
+		})
+		w.Write(body)
+		return
+	}
+
+	status := SplitUsers(opts.UserIdCur, opts.UserIdNew)
+	body, _ := json.Marshal(map[string]int{
+		"status": status,
+	})
+	w.Write(body)
 }
 
 func HandleGetTask(w http.ResponseWriter, r *http.Request) {
