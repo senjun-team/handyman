@@ -11,6 +11,22 @@ import (
 	log "github.com/sirupsen/logrus"
 )
 
+type OptionsTg struct {
+	UserIdCur int `json:"cur_user_id"`
+	UserIdOld int `json:"old_user_id"`
+	UserIdNew int `json:"new_user_id"`
+}
+
+func ParseOptionsTg(r *http.Request) (OptionsTg, error) {
+	var opts OptionsTg
+	err := json.NewDecoder(r.Body).Decode(&opts)
+	if err != nil {
+		return OptionsTg{}, err
+	}
+
+	return opts, err
+}
+
 type Options struct {
 	CourseId           string `json:"course_id,omitempty"`
 	ChapterId          string `json:"chapter_id,omitempty"`

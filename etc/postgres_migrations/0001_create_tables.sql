@@ -12,6 +12,44 @@ CREATE TYPE edu_material_status AS ENUM ('in_progress', 'blocked', 'completed');
 CREATE TYPE course_type AS ENUM('free', 'paid');
 
 
+CREATE FUNCTION max_edu_status(s1 edu_material_status, s2 edu_material_status) RETURNS edu_material_status AS
+$BODY$
+BEGIN
+
+    IF s1 = 'completed' OR s2 = 'completed' THEN
+        RETURN 'completed';
+    END IF;
+
+    IF s1 = 'blocked' OR s2 = 'blocked' THEN
+        RETURN 'blocked';
+    END IF;
+
+    RETURN 'in_progress';
+ END;
+$BODY$
+LANGUAGE plpgsql;
+
+CREATE FUNCTION best_solution(s1 edu_material_status, t1 text, s2 edu_material_status, t2 text) RETURNS text AS
+$BODY$
+BEGIN
+
+    IF s1 = 'completed' THEN
+        RETURN t1;
+    END IF;
+
+    IF s2 = 'completed' THEN
+        RETURN t2;
+    END IF;
+
+    IF len(t1) > 0 THEN
+        RETURN t1;
+    END IF;
+
+    RETURN t2;
+ END;
+$BODY$
+LANGUAGE plpgsql;
+
 -- Tables & indices
 
 CREATE TABLE courses (

@@ -112,6 +112,17 @@ curl -X POST   -d '{"task_id":"python_chapter_0010_task_0020"}'   "http://localh
 {"error":"Couldn't get task details for: python_chapter_0010_task_0020"}
 ```
 
+Внутренние апишки для сцены:
+`/merge_users` - смерживание прогресса по курсам, главам и задачам для двух пользователей с последующим удалением статистики по второму пользователю. Здесь `new_user_id` присутствует, но не играет роли. 
+```bash
+curl -X POST   -d '{"cur_user_id": 456, "old_user_id": 982, "new_user_id": 0}'   "http://localhost:8080/merge_users"
+```
+
+`/split_users` - дублирование статистики в нового пользователя. Здесь `old_user_id` присутствует, но не играет роли.
+```bash
+curl -X POST   -d '{"cur_user_id": 456, "old_user_id": 0, "new_user_id": 982}'   "http://localhost:8080/split_users"
+```
+
 
 ## Настройка PostgreSQL в докере для отладки
 Чтобы начать работать с handyman, можно запустить контейнер  с постгресом:

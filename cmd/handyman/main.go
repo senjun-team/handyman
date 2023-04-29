@@ -58,6 +58,10 @@ func main() {
 	r.HandleFunc("/courses_stats", internal.HandleCoursesStats)
 	r.HandleFunc("/get_task", internal.HandleGetTask)
 
+	// APIs for syncing telegram bot account and site account:
+	r.HandleFunc("/merge_users", internal.HandleMergeUsers)
+	r.HandleFunc("/split_users", internal.HandleSplitUsers)
+
 	srv := &http.Server{
 		Handler:      r,
 		Addr:         addrHandyman,
