@@ -523,13 +523,20 @@ func GetCourseStatuses(userId string) []CourseStatus {
 	select course_id, 
 	(select title from courses where courses.course_id = course_progress.course_id) as title, 
 	(select count(*) from chapters where chapters.course_id = course_progress.course_id) as chapters_total,
-	(select count(*) from chapter_progress where chapter_progress.user_id = $1 and chapter_progress.status = 'completed') as chapters_completed,
+	(select count(*) from chapter_progress where chapter_progress.user_id = $1 and 
+	chapter_progress.status = 'completed' 
+	and chapter_progress.chapter_id like concat(course_id, '_chapter_%')) as chapters_completed,
 	status from course_progress
 	where user_id = $1 and status in ('in_progress', 'completed')
 	`
 
 	rows, err := DB.Query(query, userId)
 	if err != nil {
+		Logger.WithFields(log.Fields{
+			"user_id": userId,
+			"error":   err.Error(),
+		}).Warning("Couldn't get course statuses")
+
 		return []CourseStatus{}
 	}
 
@@ -551,6 +558,9 @@ func GetCourseStatuses(userId string) []CourseStatus {
 		courseStatuses = append(courseStatuses, cs)
 	}
 
+	Logger.WithFields(log.Fields{
+		"user_id": userId,
+	}).Info("Got course statuses")
 	return courseStatuses
 }
 
@@ -938,7 +948,7 @@ func HandleGetCourses(w http.ResponseWriter, r *http.Request) {
 		"user_id":     opts.userId,
 		"status":      opts.Status,
 		"courses_len": len(courses),
-	}).Info("Successfully got courses")
+	}).Info("Got courses")
 
 	json.NewEncoder(w).Encode(courses)
 }
@@ -1150,7 +1160,7 @@ func HandleGetChapters(w http.ResponseWriter, r *http.Request) {
 
 		Logger.WithFields(log.Fields{
 			"course_id": opts.CourseId,
-		}).Info("Successfully got chapters for not authorized user")
+		}).Info("Got chapters for not authorized user")
 
 		json.NewEncoder(w).Encode(chapters)
 		return
@@ -1161,7 +1171,7 @@ func HandleGetChapters(w http.ResponseWriter, r *http.Request) {
 	Logger.WithFields(log.Fields{
 		"user_id":   opts.userId,
 		"course_id": opts.CourseId,
-	}).Info("Successfully got chapters")
+	}).Info("Got chapters")
 
 	json.NewEncoder(w).Encode(chapters)
 }
@@ -1201,7 +1211,7 @@ func HandleGetChapter(w http.ResponseWriter, r *http.Request) {
 		"user_id":    opts.userId,
 		"course_id":  opts.CourseId,
 		"chapter_id": opts.ChapterId,
-	}).Info("Successfully got chapter")
+	}).Info("Got chapter")
 
 	json.NewEncoder(w).Encode(chapter)
 }
@@ -1431,7 +1441,7 @@ func HandleGetActiveChapter(w http.ResponseWriter, r *http.Request) {
 				"user_id":    opts.userId,
 				"course_id":  opts.CourseId,
 				"chapter_id": opts.ChapterId,
-			}).Info("Successfully got chapter")
+			}).Info("Got chapter")
 
 			json.NewEncoder(w).Encode(chapter)
 			return
