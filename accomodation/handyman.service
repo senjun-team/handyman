@@ -1,0 +1,14 @@
+[Unit]
+Description=handyman: Service api handling
+After=network.target
+
+[Service]
+User=handyman
+Type=simple
+ExecStart=/usr/bin/handyman
+Restart=on-failure
+RestartSec=3s
+MemoryMax=2G
+
+[Install]
+WantedBy=multi-user.target
