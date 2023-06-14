@@ -160,25 +160,23 @@ func ReadTextFile(path string) (string, error) {
 func InjectCodeToTestWrapper(opts *Options) error {
 	wrapperPath := GetPathToTestWrapper(opts)
 	content, err := ReadTextFile(wrapperPath)
+	if err != nil {
+		return err
+	}
 
 	opts.SourceCodeTest = strings.ReplaceAll(string(content), injectMarker, opts.SourceCodeOriginal)
-
-	Logger.WithFields(log.Fields{
-		"filepath": wrapperPath,
-	}).Info("Injected test wrapper")
-	return err
+	return nil
 }
 
 func InjectCodeToRunWrapper(opts *Options) error {
 	wrapperPath := GetPathToRunWrapper(opts)
 	content, err := ReadTextFile(wrapperPath)
+	if err != nil {
+		return err
+	}
 
 	opts.SourceCodeRun = strings.ReplaceAll(string(content), injectMarker, opts.SourceCodeOriginal)
-
-	Logger.WithFields(log.Fields{
-		"filepath": wrapperPath,
-	}).Info("Injected run wrapper")
-	return err
+	return nil
 }
 
 func IsNewStatusValid(curStatus string, newStatus string) bool {

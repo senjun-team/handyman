@@ -130,6 +130,12 @@ func HandleRunTask(w http.ResponseWriter, r *http.Request) {
 			"error": fmt.Sprintf("Invalid request: %s", err),
 		})
 		w.Write(body)
+
+		Logger.WithFields(log.Fields{
+			"user_id": opts.userId,
+			"task_id": opts.TaskId,
+			"error":   err.Error(),
+		}).Warning("/run_task: couldn't parse request")
 		return
 	}
 
@@ -137,6 +143,11 @@ func HandleRunTask(w http.ResponseWriter, r *http.Request) {
 		json.NewEncoder(w).Encode(map[string]string{
 			"error": "Couldn't get user_id",
 		})
+
+		Logger.WithFields(log.Fields{
+			"user_id": opts.userId,
+			"task_id": opts.TaskId,
+		}).Warning("/run_task: couldn't get user_id")
 		return
 	}
 
@@ -146,6 +157,13 @@ func HandleRunTask(w http.ResponseWriter, r *http.Request) {
 			"error": fmt.Sprintf("Couldn't check user permissions on this chapter: %s", err),
 		})
 		w.Write(body)
+
+		Logger.WithFields(log.Fields{
+			"user_id":    opts.userId,
+			"task_id":    opts.TaskId,
+			"chapter_id": opts.ChapterId,
+			"error":      err.Error(),
+		}).Warning("/run_task: couldn't get user permissions on chapter")
 		return
 	}
 
@@ -154,6 +172,12 @@ func HandleRunTask(w http.ResponseWriter, r *http.Request) {
 			"error": "User doesn't have permissions on this chapter",
 		})
 		w.Write(body)
+
+		Logger.WithFields(log.Fields{
+			"user_id":    opts.userId,
+			"task_id":    opts.TaskId,
+			"chapter_id": opts.ChapterId,
+		}).Warning("/run_task: user doesn't have permissions on chapter")
 		return
 	}
 
@@ -164,6 +188,14 @@ func HandleRunTask(w http.ResponseWriter, r *http.Request) {
 			"error": "Couldn't prepare tests for wrapper task runner",
 		})
 		w.Write(body)
+
+		Logger.WithFields(log.Fields{
+			"user_id":    opts.userId,
+			"task_id":    opts.TaskId,
+			"chapter_id": opts.ChapterId,
+			"course_id":  opts.CourseId,
+			"error":      err.Error(),
+		}).Error("/run_task: couldn't inject code to test wrapper")
 		return
 	}
 
@@ -174,6 +206,14 @@ func HandleRunTask(w http.ResponseWriter, r *http.Request) {
 			"error": "Couldn't prepare run wrapper for task runner",
 		})
 		w.Write(body)
+
+		Logger.WithFields(log.Fields{
+			"user_id":    opts.userId,
+			"task_id":    opts.TaskId,
+			"chapter_id": opts.ChapterId,
+			"course_id":  opts.CourseId,
+			"error":      err.Error(),
+		}).Error("/run_task: couldn't inject code to run wrapper")
 		return
 	}
 
@@ -186,6 +226,12 @@ func HandleRunTask(w http.ResponseWriter, r *http.Request) {
 			"error": fmt.Sprintf("Couldn't communicate with tasks runner: %s", res.err),
 		})
 		w.Write(body)
+
+		Logger.WithFields(log.Fields{
+			"user_id": opts.userId,
+			"task_id": opts.TaskId,
+			"error":   res.err.Error(),
+		}).Error("/run_task: couldn't communicate with watchman")
 		return
 	}
 
@@ -194,9 +240,11 @@ func HandleRunTask(w http.ResponseWriter, r *http.Request) {
 	})
 
 	Logger.WithFields(log.Fields{
-		"user_code_status": res.Status,
-		"tests_code":       res.TestsStatus,
-	}).Info("Successfully communicated watchman")
+		"user_id":           opts.userId,
+		"task_id":           opts.TaskId,
+		"user_code_status":  res.Status,
+		"tests_code_status": res.TestsStatus,
+	}).Info("/run_task: completed")
 
 	json.NewEncoder(w).Encode(res)
 }

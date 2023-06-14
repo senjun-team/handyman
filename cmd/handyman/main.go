@@ -40,7 +40,7 @@ func main() {
 	defer internal.DB.Close()
 	internal.Logger.Info("DB is online, checked connection")
 
-	internal.WP = workerpool.New(2)
+	internal.WP = workerpool.New(12)
 	internal.Logger.Info("Created worker pool for DB deferred queries")
 
 	r := mux.NewRouter()
