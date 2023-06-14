@@ -70,10 +70,10 @@ func UpdateTaskStatus(userId string, taskId string, isSolved bool, solutionText 
 	_, err := DB.Exec(query, userId, taskId, taskStatus, solutionText, attemptsCount)
 	if err != nil {
 		Logger.WithFields(log.Fields{
-			"user_id":  userId,
-			"task_id":  taskId,
-			"db_error": err.Error(),
-		}).Error("Couldn't update task status for user")
+			"user_id": userId,
+			"task_id": taskId,
+			"error":   err.Error(),
+		}).Error("/run_task [worker pool] update task status: couldn't update task status for user")
 		return
 	}
 
@@ -81,7 +81,7 @@ func UpdateTaskStatus(userId string, taskId string, isSolved bool, solutionText 
 		"user_id": userId,
 		"task_id": taskId,
 		"status":  taskStatus,
-	}).Info("Updated task status for user")
+	}).Info("/run_task [worker pool] update task status: completed")
 }
 
 func GetCourses() []CourseForUser {
@@ -558,9 +558,6 @@ func GetCourseStatuses(userId string) []CourseStatus {
 		courseStatuses = append(courseStatuses, cs)
 	}
 
-	Logger.WithFields(log.Fields{
-		"user_id": userId,
-	}).Info("Got course statuses")
 	return courseStatuses
 }
 
@@ -756,8 +753,8 @@ func SplitUsers(userIdCur int, userIdNew int) int {
 		Logger.WithFields(log.Fields{
 			"user_id_cur": userIdCur,
 			"user_id_new": userIdNew,
-			"db_error":    err.Error(),
-		}).Error("Couldn't start transaction in SplitUsers")
+			"error":       err.Error(),
+		}).Error("/split_users [SplitUsers()]: couldn't start transaction")
 		return -1
 	}
 
@@ -771,8 +768,8 @@ func SplitUsers(userIdCur int, userIdNew int) int {
 		Logger.WithFields(log.Fields{
 			"user_id_cur": userIdCur,
 			"user_id_new": userIdNew,
-			"db_error":    err.Error(),
-		}).Error("Couldn't split course records for user")
+			"error":       err.Error(),
+		}).Error("/split_users [SplitUsers()]: couldn't split course records for user")
 		return -1
 	}
 
@@ -787,7 +784,7 @@ func SplitUsers(userIdCur int, userIdNew int) int {
 			"user_id_cur": userIdCur,
 			"user_id_new": userIdNew,
 			"db_error":    err.Error(),
-		}).Error("Couldn't split chapter records for user")
+		}).Error("/split_users [SplitUsers()]: couldn't split chapter records for user")
 		return -1
 	}
 
@@ -802,7 +799,7 @@ func SplitUsers(userIdCur int, userIdNew int) int {
 			"user_id_cur": userIdCur,
 			"user_id_new": userIdNew,
 			"db_error":    err.Error(),
-		}).Error("Couldn't split task records for user")
+		}).Error("/split_users [SplitUsers()]: couldn't split task records for user")
 		return -1
 	}
 
@@ -812,14 +809,9 @@ func SplitUsers(userIdCur int, userIdNew int) int {
 			"user_id_cur": userIdCur,
 			"user_id_new": userIdNew,
 			"db_error":    err.Error(),
-		}).Error("Couldn't commit transaction in SplitUsers")
+		}).Error("/split_users [SplitUsers()]: couldn't commit transaction")
 		return -1
 	}
-
-	Logger.WithFields(log.Fields{
-		"user_id_cur": userIdCur,
-		"user_id_new": userIdNew,
-	}).Info("Split user progress in SplitUsers")
 
 	return 0
 }
@@ -832,8 +824,8 @@ func MergeUsers(userIdCur int, userIdOld int) int {
 		Logger.WithFields(log.Fields{
 			"user_id_cur": userIdCur,
 			"user_id_old": userIdOld,
-			"db_error":    err.Error(),
-		}).Error("Couldn't start transaction in MergeUsers")
+			"error":       err.Error(),
+		}).Error("/merge_users [MergeUsers()]: couldn't start transaction")
 		return -1
 	}
 
@@ -842,7 +834,7 @@ func MergeUsers(userIdCur int, userIdOld int) int {
 		Logger.WithFields(log.Fields{
 			"user_id_cur": userIdCur,
 			"user_id_old": userIdOld,
-		}).Error("Couldn't merge user courses in MergeUsers")
+		}).Error("/merge_users [MergeUsers()]: couldn't merge user courses")
 		return -1
 	}
 
@@ -851,7 +843,7 @@ func MergeUsers(userIdCur int, userIdOld int) int {
 		Logger.WithFields(log.Fields{
 			"user_id_cur": userIdCur,
 			"user_id_old": userIdOld,
-		}).Error("Couldn't merge user chapters in MergeUsers")
+		}).Error("/merge_users [MergeUsers()]: couldn't merge user chapters")
 		return -1
 	}
 
@@ -860,7 +852,7 @@ func MergeUsers(userIdCur int, userIdOld int) int {
 		Logger.WithFields(log.Fields{
 			"user_id_cur": userIdCur,
 			"user_id_old": userIdOld,
-		}).Error("Couldn't merge user tasks in MergeUsers")
+		}).Error("/merge_users [MergeUsers()]: couldn't merge user tasks")
 		return -1
 	}
 
@@ -869,15 +861,10 @@ func MergeUsers(userIdCur int, userIdOld int) int {
 		Logger.WithFields(log.Fields{
 			"user_id_cur": userIdCur,
 			"user_id_old": userIdOld,
-			"db_error":    err.Error(),
-		}).Error("Couldn't commit transaction in MergeUsers")
+			"error":       err.Error(),
+		}).Error("/merge_users [MergeUsers()]: couldn't commit transaction")
 		return -1
 	}
-
-	Logger.WithFields(log.Fields{
-		"user_id_cur": userIdCur,
-		"user_id_old": userIdOld,
-	}).Info("Merged user progress in MergeUsers")
 
 	return 0
 }
@@ -923,6 +910,12 @@ func HandleGetCourses(w http.ResponseWriter, r *http.Request) {
 			"error": fmt.Sprintf("Invalid request: %s", err),
 		})
 		w.Write(body)
+
+		Logger.WithFields(log.Fields{
+			"user_id": opts.userId,
+			"status":  opts.Status,
+			"error":   err.Error(),
+		}).Warning("/get_courses: couldn't parse request")
 		return
 	}
 
@@ -945,10 +938,10 @@ func HandleGetCourses(w http.ResponseWriter, r *http.Request) {
 	}
 
 	Logger.WithFields(log.Fields{
-		"user_id":     opts.userId,
-		"status":      opts.Status,
-		"courses_len": len(courses),
-	}).Info("Got courses")
+		"user_id":               opts.userId,
+		"status":                opts.Status,
+		"retrieved_courses_len": len(courses),
+	}).Info("/get_courses: completed")
 
 	json.NewEncoder(w).Encode(courses)
 }
@@ -963,27 +956,42 @@ func HandleUpdateCourseProgress(w http.ResponseWriter, r *http.Request) {
 			"error": fmt.Sprintf("Invalid request: %s", err),
 		})
 		w.Write(body)
+
+		Logger.WithFields(log.Fields{
+			"user_id":   opts.userId,
+			"course_id": opts.CourseId,
+			"status":    opts.Status,
+			"error":     err.Error(),
+		}).Warning("/update_course_progress: couldn't parse request")
 		return
 	}
 
-	if len(opts.userId) == 0 || len(opts.Status) == 0 {
+	if len(opts.userId) == 0 || len(opts.Status) == 0 || len(opts.CourseId) == 0 {
 		json.NewEncoder(w).Encode(map[string]string{
 			"error": "Required fields are not set in request",
 		})
+
+		Logger.WithFields(log.Fields{
+			"user_id":   opts.userId,
+			"course_id": opts.CourseId,
+			"status":    opts.Status,
+			"error":     err.Error(),
+		}).Warning("/update_course_progress: required fields not set in request")
 		return
 	}
 
 	curStatus, err := GetCourseProgressForUser(opts.CourseId, opts.userId)
 	if err != nil {
-		Logger.WithFields(log.Fields{
-			"user_id":   opts.userId,
-			"course_id": opts.CourseId,
-			"error":     err.Error(),
-		}).Error("Couldn't get progress")
-
 		json.NewEncoder(w).Encode(map[string]string{
 			"error": "Couldn't get user progress on course",
 		})
+
+		Logger.WithFields(log.Fields{
+			"user_id":   opts.userId,
+			"course_id": opts.CourseId,
+			"status":    opts.Status,
+			"error":     err.Error(),
+		}).Warning("/update_course_progress: couldn't get progress on course for user")
 		return
 	}
 
@@ -993,28 +1001,38 @@ func HandleUpdateCourseProgress(w http.ResponseWriter, r *http.Request) {
 			"current_status": curStatus,
 			"new_status":     opts.Status,
 		})
+
+		Logger.WithFields(log.Fields{
+			"user_id":        opts.userId,
+			"course_id":      opts.CourseId,
+			"current_status": curStatus,
+			"new_status":     opts.Status,
+		}).Info("/update_course_progress: invalid course status transmission for user")
 		return
 	}
 
 	err = UpdateCourseProgressForUser(opts.CourseId, opts.Status, opts.userId)
 	if err != nil {
-		Logger.WithFields(log.Fields{
-			"user_id":   opts.userId,
-			"course_id": opts.CourseId,
-			"status":    opts.Status,
-			"error":     err.Error(),
-		}).Error("Couldn't update user progress on course")
-
 		json.NewEncoder(w).Encode(map[string]string{
 			"error": "Couldn't update user progress on course",
 		})
+
+		Logger.WithFields(log.Fields{
+			"user_id":        opts.userId,
+			"course_id":      opts.CourseId,
+			"current_status": curStatus,
+			"new_status":     opts.Status,
+			"error":          err.Error(),
+		}).Error("/update_course_progress: couldn't update user progress on course")
 		return
 	}
 
 	Logger.WithFields(log.Fields{
-		"user_id":   opts.userId,
-		"course_id": opts.CourseId,
-	}).Info("Updated course status for user")
+		"user_id":    opts.userId,
+		"course_id":  opts.CourseId,
+		"old_status": curStatus,
+		"new_status": opts.Status,
+	}).Info("/update_course_progress: completed")
 
 	json.NewEncoder(w).Encode(map[string]string{
 		"status": "ok",
@@ -1044,6 +1062,13 @@ func HandleUpdateChapterProgress(w http.ResponseWriter, r *http.Request) {
 			"error": fmt.Sprintf("Invalid request: %s", err),
 		})
 		w.Write(body)
+
+		Logger.WithFields(log.Fields{
+			"user_id":    opts.userId,
+			"chapter_id": opts.ChapterId,
+			"status":     opts.Status,
+			"error":      err.Error(),
+		}).Warning("/update_chapter_progress: couldn't parse request")
 		return
 	}
 
@@ -1051,20 +1076,26 @@ func HandleUpdateChapterProgress(w http.ResponseWriter, r *http.Request) {
 		json.NewEncoder(w).Encode(map[string]string{
 			"error": "Couldn't get user_id, chapter_id or status",
 		})
+
+		Logger.WithFields(log.Fields{
+			"user_id":    opts.userId,
+			"chapter_id": opts.ChapterId,
+			"status":     opts.Status,
+		}).Warning("/update_chapter_progress: required fields not set in request")
 		return
 	}
 
 	curStatus, err := GetChapterProgressForUser(opts.ChapterId, opts.userId)
 	if err != nil {
+		json.NewEncoder(w).Encode(map[string]string{
+			"error": "Couldn't get user progress on chapter",
+		})
+
 		Logger.WithFields(log.Fields{
 			"user_id":    opts.userId,
 			"chapter_id": opts.ChapterId,
 			"error":      err.Error(),
-		}).Error("Couldn't get progress")
-
-		json.NewEncoder(w).Encode(map[string]string{
-			"error": "Couldn't get user progress on chapter",
-		})
+		}).Warning("/update_chapter_progress: couldn't get user progress on chapter")
 		return
 	}
 
@@ -1073,8 +1104,16 @@ func HandleUpdateChapterProgress(w http.ResponseWriter, r *http.Request) {
 			"error":          "Couldn't change status",
 			"current_status": curStatus,
 			"new_status":     opts.Status,
+			"chapter_id":     opts.ChapterId,
 			"course_id":      opts.CourseId,
 		})
+
+		Logger.WithFields(log.Fields{
+			"user_id":        opts.userId,
+			"chapter_id":     opts.ChapterId,
+			"current_status": curStatus,
+			"new_status":     opts.Status,
+		}).Info("/update_chapter_progress: invalid chapter status transmission for user")
 		return
 	}
 
@@ -1083,6 +1122,13 @@ func HandleUpdateChapterProgress(w http.ResponseWriter, r *http.Request) {
 		json.NewEncoder(w).Encode(map[string]string{
 			"error": "Couldn't get user permissions on chapter",
 		})
+
+		Logger.WithFields(log.Fields{
+			"user_id":    opts.userId,
+			"chapter_id": opts.ChapterId,
+			"new_status": opts.Status,
+			"error":      err.Error(),
+		}).Error("/update_chapter_progress: couldn't get user permissions on chapter")
 		return
 	}
 
@@ -1090,6 +1136,12 @@ func HandleUpdateChapterProgress(w http.ResponseWriter, r *http.Request) {
 		json.NewEncoder(w).Encode(map[string]string{
 			"error": "User doesn't have permissions on chapter",
 		})
+
+		Logger.WithFields(log.Fields{
+			"user_id":    opts.userId,
+			"chapter_id": opts.ChapterId,
+			"new_status": opts.Status,
+		}).Error("/update_chapter_progress: user doesn't have permissions on chapter")
 		return
 	}
 
@@ -1101,6 +1153,12 @@ func HandleUpdateChapterProgress(w http.ResponseWriter, r *http.Request) {
 				json.NewEncoder(w).Encode(map[string]string{
 					"error": "Not all tasks in chapter are completed",
 				})
+
+				Logger.WithFields(log.Fields{
+					"user_id":    opts.userId,
+					"chapter_id": opts.ChapterId,
+					"new_status": opts.Status,
+				}).Info("/update_chapter_progress: do nothing because not all tasks are completed")
 				return
 			}
 		}
@@ -1109,28 +1167,33 @@ func HandleUpdateChapterProgress(w http.ResponseWriter, r *http.Request) {
 	err = UpdateChapterStatus(opts.userId, opts.ChapterId, opts.Status)
 
 	if err != nil {
+		json.NewEncoder(w).Encode(map[string]string{
+			"status":     "error",
+			"chapter_id": opts.ChapterId,
+			"course_id":  opts.CourseId,
+		})
+
 		Logger.WithFields(log.Fields{
 			"user_id":    opts.userId,
 			"chapter_id": opts.ChapterId,
-			"db_error":   err.Error(),
-		}).Error("Couldn't update chapter status for user")
-
-		json.NewEncoder(w).Encode(map[string]string{
-			"status":    "error",
-			"course_id": opts.CourseId,
-		})
-
+			"old_status": curStatus,
+			"new_status": opts.Status,
+			"error":      err.Error(),
+		}).Error("/update_chapter_progress: couldn't update chapter status for user")
 		return
 	}
 
 	Logger.WithFields(log.Fields{
 		"user_id":    opts.userId,
+		"old_status": curStatus,
+		"new_status": opts.Status,
 		"chapter_id": opts.ChapterId,
-	}).Info("Updated chapter status for user")
+	}).Info("/update_chapter_progress: completed")
 
 	json.NewEncoder(w).Encode(map[string]string{
-		"status":    "ok",
-		"course_id": opts.CourseId,
+		"status":     "ok",
+		"chapter_id": opts.ChapterId,
+		"course_id":  opts.CourseId,
 	})
 }
 
@@ -1144,6 +1207,12 @@ func HandleGetChapters(w http.ResponseWriter, r *http.Request) {
 			"error": fmt.Sprintf("Invalid request: %s", err),
 		})
 		w.Write(body)
+
+		Logger.WithFields(log.Fields{
+			"user_id":   opts.userId,
+			"course_id": opts.CourseId,
+			"error":     err.Error(),
+		}).Warning("/get_chapters: couldn't parse request")
 		return
 	}
 
@@ -1151,6 +1220,11 @@ func HandleGetChapters(w http.ResponseWriter, r *http.Request) {
 		json.NewEncoder(w).Encode(map[string]string{
 			"error": "Couldn't get course_id in get_chapters",
 		})
+
+		Logger.WithFields(log.Fields{
+			"user_id":   opts.userId,
+			"course_id": opts.CourseId,
+		}).Warning("/get_chapters: required fields not set in request")
 		return
 	}
 
@@ -1160,7 +1234,7 @@ func HandleGetChapters(w http.ResponseWriter, r *http.Request) {
 
 		Logger.WithFields(log.Fields{
 			"course_id": opts.CourseId,
-		}).Info("Got chapters for not authorized user")
+		}).Info("/get_chapters: completed for not authorized user")
 
 		json.NewEncoder(w).Encode(chapters)
 		return
@@ -1171,7 +1245,7 @@ func HandleGetChapters(w http.ResponseWriter, r *http.Request) {
 	Logger.WithFields(log.Fields{
 		"user_id":   opts.userId,
 		"course_id": opts.CourseId,
-	}).Info("Got chapters")
+	}).Info("/get_chapters: completed")
 
 	json.NewEncoder(w).Encode(chapters)
 }
@@ -1186,6 +1260,13 @@ func HandleGetChapter(w http.ResponseWriter, r *http.Request) {
 			"error": fmt.Sprintf("Invalid request: %s", err),
 		})
 		w.Write(body)
+
+		Logger.WithFields(log.Fields{
+			"user_id":    opts.userId,
+			"chapter_id": opts.ChapterId,
+			"course_id":  opts.CourseId,
+			"error":      err.Error(),
+		}).Warning("/get_chapter: couldn't parse request")
 		return
 	}
 
@@ -1193,6 +1274,12 @@ func HandleGetChapter(w http.ResponseWriter, r *http.Request) {
 		json.NewEncoder(w).Encode(map[string]string{
 			"error": "Couldn't get required request params",
 		})
+
+		Logger.WithFields(log.Fields{
+			"user_id":    opts.userId,
+			"chapter_id": opts.ChapterId,
+			"course_id":  opts.CourseId,
+		}).Warning("/get_chapter: required fields not set in request")
 		return
 	}
 
@@ -1204,6 +1291,13 @@ func HandleGetChapter(w http.ResponseWriter, r *http.Request) {
 				opts.CourseId, opts.userId, opts.ChapterId, err),
 		})
 		w.Write(body)
+
+		Logger.WithFields(log.Fields{
+			"user_id":    opts.userId,
+			"chapter_id": opts.ChapterId,
+			"course_id":  opts.CourseId,
+			"error":      err.Error(),
+		}).Error("/get_chapter: couldn't get chapter for user")
 		return
 	}
 
@@ -1211,7 +1305,7 @@ func HandleGetChapter(w http.ResponseWriter, r *http.Request) {
 		"user_id":    opts.userId,
 		"course_id":  opts.CourseId,
 		"chapter_id": opts.ChapterId,
-	}).Info("Got chapter")
+	}).Info("/get_chapter: completed")
 
 	json.NewEncoder(w).Encode(chapter)
 }
@@ -1226,6 +1320,12 @@ func HandleGetProgress(w http.ResponseWriter, r *http.Request) {
 			"error": fmt.Sprintf("Invalid request: %s", err),
 		})
 		w.Write(body)
+
+		Logger.WithFields(log.Fields{
+			"user_id":    opts.userId,
+			"chapter_id": opts.ChapterId,
+			"error":      err.Error(),
+		}).Warning("/get_progress: couldn't parse request")
 		return
 	}
 
@@ -1233,14 +1333,39 @@ func HandleGetProgress(w http.ResponseWriter, r *http.Request) {
 		json.NewEncoder(w).Encode(map[string]string{
 			"error": "Couldn't get required request params",
 		})
+
+		Logger.WithFields(log.Fields{
+			"user_id":    opts.userId,
+			"chapter_id": opts.ChapterId,
+		}).Warning("/get_progress: required fields not set in request")
 		return
 	}
 
 	chapterStatus, err := GetChapterProgress(opts.userId, opts.ChapterId)
-	if err != nil || len(chapterStatus) == 0 || chapterStatus == "not_started" {
+
+	if err != nil {
 		json.NewEncoder(w).Encode(map[string]string{
 			"error": "User doesn't have permissions on this chapter",
 		})
+
+		Logger.WithFields(log.Fields{
+			"user_id":    opts.userId,
+			"chapter_id": opts.ChapterId,
+			"error":      err.Error(),
+		}).Warning("/get_progress: user doesn't have permissions on chapter (sql query)")
+		return
+	}
+
+	if len(chapterStatus) == 0 || chapterStatus == "not_started" {
+		json.NewEncoder(w).Encode(map[string]string{
+			"error": "User doesn't have permissions on this chapter",
+		})
+
+		Logger.WithFields(log.Fields{
+			"user_id":        opts.userId,
+			"chapter_id":     opts.ChapterId,
+			"chapter_status": chapterStatus,
+		}).Warning("/get_progress: user doesn't have permissions on chapter")
 		return
 	}
 
@@ -1265,7 +1390,7 @@ func HandleGetProgress(w http.ResponseWriter, r *http.Request) {
 				"course_id":  opts.CourseId,
 				"chapter_id": opts.ChapterId,
 				"error":      err.Error(),
-			}).Error("Couldn't get user progress on chapter")
+			}).Error("/get_progress: couldn't get user progress on chapter")
 
 			json.NewEncoder(w).Encode(map[string]string{
 				"error": "Couldn't get progress",
@@ -1277,6 +1402,15 @@ func HandleGetProgress(w http.ResponseWriter, r *http.Request) {
 			userProgress.CourseId = opts.CourseId
 		}
 	}
+
+	Logger.WithFields(log.Fields{
+		"user_id":             opts.userId,
+		"chapter_id":          opts.ChapterId,
+		"chapter_status":      userProgress.StatusOnChapter,
+		"next_chapter_id":     userProgress.NextChapterId,
+		"is_course_completed": userProgress.IsCourseCompleted,
+		"not_completed_tasks": userProgress.NotCompletedTaskIds,
+	}).Info("/get_progress: completed")
 
 	json.NewEncoder(w).Encode(userProgress)
 }
@@ -1291,6 +1425,11 @@ func HandleCoursesStats(w http.ResponseWriter, r *http.Request) {
 			"error": fmt.Sprintf("Invalid request: %s", err),
 		})
 		w.Write(body)
+
+		Logger.WithFields(log.Fields{
+			"user_id": opts.userId,
+			"error":   err.Error(),
+		}).Warning("/courses_stats: couldn't parse request")
 		return
 	}
 
@@ -1298,10 +1437,20 @@ func HandleCoursesStats(w http.ResponseWriter, r *http.Request) {
 		json.NewEncoder(w).Encode(map[string]string{
 			"error": "Couldn't get user_id",
 		})
+
+		Logger.WithFields(log.Fields{
+			"user_id": opts.userId,
+		}).Warning("/courses_stats: required fields not set in request")
 		return
 	}
 
 	courseStatuses := GetCourseStatuses(opts.userId)
+
+	Logger.WithFields(log.Fields{
+		"user_id":             opts.userId,
+		"course_statuses_len": len(courseStatuses),
+	}).Info("/courses_stats: completed")
+
 	json.NewEncoder(w).Encode(courseStatuses)
 }
 
@@ -1315,6 +1464,12 @@ func HandleMergeUsers(w http.ResponseWriter, r *http.Request) {
 			"error": fmt.Sprintf("Invalid request: %s", err),
 		})
 		w.Write(body)
+
+		Logger.WithFields(log.Fields{
+			"user_id_cur": opts.UserIdCur,
+			"user_id_old": opts.UserIdOld,
+			"error":       err.Error(),
+		}).Warning("/merge_users: couldn't parse request")
 		return
 	}
 
@@ -1323,6 +1478,14 @@ func HandleMergeUsers(w http.ResponseWriter, r *http.Request) {
 	body, _ := json.Marshal(map[string]int{
 		"status": status,
 	})
+
+	if status == 0 {
+		Logger.WithFields(log.Fields{
+			"user_id_cur": opts.UserIdCur,
+			"user_id_old": opts.UserIdOld,
+		}).Info("/merge_users: completed")
+	}
+
 	w.Write(body)
 }
 
@@ -1336,6 +1499,12 @@ func HandleSplitUsers(w http.ResponseWriter, r *http.Request) {
 			"error": fmt.Sprintf("Invalid request: %s", err),
 		})
 		w.Write(body)
+
+		Logger.WithFields(log.Fields{
+			"user_id_cur": opts.UserIdCur,
+			"user_id_new": opts.UserIdNew,
+			"error":       err.Error(),
+		}).Warning("/split_users: couldn't parse request")
 		return
 	}
 
@@ -1343,6 +1512,14 @@ func HandleSplitUsers(w http.ResponseWriter, r *http.Request) {
 	body, _ := json.Marshal(map[string]int{
 		"status": status,
 	})
+
+	if status == 0 {
+		Logger.WithFields(log.Fields{
+			"user_id_cur": opts.UserIdCur,
+			"user_id_new": opts.UserIdNew,
+		}).Info("/split_users: completed")
+	}
+
 	w.Write(body)
 }
 
@@ -1356,6 +1533,11 @@ func HandleGetTask(w http.ResponseWriter, r *http.Request) {
 			"error": fmt.Sprintf("Invalid request: %s", err),
 		})
 		w.Write(body)
+		Logger.WithFields(log.Fields{
+			"user_id": opts.userId,
+			"task_id": opts.TaskId,
+			"error":   err.Error(),
+		}).Warning("/get_task: couldn't parse request")
 		return
 	}
 
@@ -1363,6 +1545,11 @@ func HandleGetTask(w http.ResponseWriter, r *http.Request) {
 		json.NewEncoder(w).Encode(map[string]string{
 			"error": "Couldn't get user_id or task_id",
 		})
+
+		Logger.WithFields(log.Fields{
+			"user_id": opts.userId,
+			"task_id": opts.TaskId,
+		}).Warning("/get_task: required fields not set in request")
 		return
 	}
 
@@ -1372,7 +1559,7 @@ func HandleGetTask(w http.ResponseWriter, r *http.Request) {
 			"user_id": opts.userId,
 			"task_id": opts.TaskId,
 			"error":   err.Error(),
-		}).Error("Couldn't get task details")
+		}).Error("/get_task: couldn't get task details")
 
 		body, _ := json.Marshal(map[string]string{
 			"error": fmt.Sprintf("Couldn't get task details for: %s", opts.TaskId),
@@ -1380,6 +1567,11 @@ func HandleGetTask(w http.ResponseWriter, r *http.Request) {
 		w.Write(body)
 		return
 	}
+
+	Logger.WithFields(log.Fields{
+		"user_id": opts.userId,
+		"task_id": opts.TaskId,
+	}).Warning("/get_task: completed")
 
 	json.NewEncoder(w).Encode(task)
 }
@@ -1394,6 +1586,12 @@ func HandleGetActiveChapter(w http.ResponseWriter, r *http.Request) {
 			"error": fmt.Sprintf("Invalid request: %s", err),
 		})
 		w.Write(body)
+
+		Logger.WithFields(log.Fields{
+			"user_id":   opts.userId,
+			"course_id": opts.CourseId,
+			"error":     err.Error(),
+		}).Warning("/get_active_chapter: couldn't parse request")
 		return
 	}
 
@@ -1401,6 +1599,11 @@ func HandleGetActiveChapter(w http.ResponseWriter, r *http.Request) {
 		json.NewEncoder(w).Encode(map[string]string{
 			"error": "Couldn't get user_id or course_id",
 		})
+
+		Logger.WithFields(log.Fields{
+			"user_id":   opts.userId,
+			"course_id": opts.CourseId,
+		}).Warning("/get_active_chapter: required fields not set in request")
 		return
 	}
 
@@ -1418,6 +1621,11 @@ func HandleGetActiveChapter(w http.ResponseWriter, r *http.Request) {
 			"error": "Course is not in state 'in_progress' for user",
 		})
 		w.Write(body)
+
+		Logger.WithFields(log.Fields{
+			"user_id":   opts.userId,
+			"course_id": opts.CourseId,
+		}).Warning("/get_active_chapter: course is not in state 'in_progress' for user")
 		return
 	}
 
@@ -1434,6 +1642,13 @@ func HandleGetActiveChapter(w http.ResponseWriter, r *http.Request) {
 					"error": fmt.Sprintf("Couldn't get chapter for user: %s", err),
 				})
 				w.Write(body)
+
+				Logger.WithFields(log.Fields{
+					"user_id":    opts.userId,
+					"course_id":  opts.CourseId,
+					"chapter_id": opts.ChapterId,
+					"error":      err.Error(),
+				}).Error("/get_active_chapter: couldn't get chapter for user")
 				return
 			}
 
@@ -1441,7 +1656,7 @@ func HandleGetActiveChapter(w http.ResponseWriter, r *http.Request) {
 				"user_id":    opts.userId,
 				"course_id":  opts.CourseId,
 				"chapter_id": opts.ChapterId,
-			}).Info("Got chapter")
+			}).Info("/get_active_chapter: completed")
 
 			json.NewEncoder(w).Encode(chapter)
 			return
@@ -1451,7 +1666,7 @@ func HandleGetActiveChapter(w http.ResponseWriter, r *http.Request) {
 	Logger.WithFields(log.Fields{
 		"user_id":   opts.userId,
 		"course_id": opts.CourseId,
-	}).Info("No active chapter for user")
+	}).Info("/get_active_chapter: completed with no active chapter for user")
 
 	body, _ := json.Marshal(map[string]string{
 		"error": "No active chapter for user",
