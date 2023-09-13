@@ -230,6 +230,7 @@ type CourseStatus struct {
 type ChapterForUser struct {
 	ChapterId     string `json:"chapter_id"`
 	Status        string `json:"status"`
+	CourseStatus  string `json:"course_status"`
 	Title         string `json:"title"`
 	NextChapterId string `json:"next_chapter_id,omitempty"`
 }

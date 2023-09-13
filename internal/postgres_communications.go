@@ -1282,6 +1282,7 @@ func HandleGetChapter(w http.ResponseWriter, r *http.Request) {
 	}
 
 	chapter.NextChapterId, _ = GetNextChapterId(opts.CourseId, opts.ChapterId)
+	chapter.CourseStatus, _ = GetCourseProgressForUser(opts.CourseId, opts.userId)
 
 	Logger.WithFields(log.Fields{
 		"user_id":         opts.userId,
