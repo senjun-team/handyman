@@ -31,6 +31,7 @@ type Options struct {
 	CourseId           string `json:"course_id,omitempty"`
 	ChapterId          string `json:"chapter_id,omitempty"`
 	TaskId             string `json:"task_id,omitempty"`
+	TaskType           string `json:"task_type,omitempty"`
 	SourceCodeOriginal string `json:"solution_text,omitempty"`
 	SourceCodeRun      string `json:"source_run"`
 	SourceCodeTest     string `json:"source_test"`
@@ -179,6 +180,10 @@ func InjectCodeToTestWrapper(opts *Options) error {
 }
 
 func InjectCodeToRunWrapper(opts *Options) error {
+	if opts.TaskType != "code" {
+		opts.SourceCodeRun = ""
+		return nil
+	}
 	wrapperPath := GetPathToRunWrapper(opts)
 	content, err := ReadTextFile(wrapperPath)
 	if err != nil {

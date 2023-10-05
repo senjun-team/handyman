@@ -678,7 +678,7 @@ func MergeUserTasks(tx *sql.Tx, ctx context.Context, userIdCur int, userIdOld in
 				"task_id":     taskId,
 				"status":      status,
 				"db_error":    err.Error(),
-			}).Error("Couldn't update task status for user")
+			}).Error("Couldn't insert into task_progress for user")
 			return -1
 		}
 	}

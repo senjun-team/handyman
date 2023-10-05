@@ -128,6 +128,7 @@ func communicateWatchman(opts Options, c chan RunTaskResult) {
 	if err != nil {
 		Logger.WithFields(log.Fields{
 			"Error": err,
+			"Body":  body,
 		}).Error("Couldn't parse json body")
 		res.err = err
 		c <- *res
@@ -155,6 +156,10 @@ func HandleRunTask(w http.ResponseWriter, r *http.Request) {
 			"error":   err.Error(),
 		}).Warning("/run_task: couldn't parse request")
 		return
+	}
+
+	if len(opts.TaskType) == 0 {
+		opts.TaskType = "code"
 	}
 
 	Logger.WithFields(log.Fields{
@@ -225,7 +230,7 @@ func HandleRunTask(w http.ResponseWriter, r *http.Request) {
 			"user_id": opts.userId,
 			"task_id": opts.TaskId,
 			"error":   res.err.Error(),
-		}).Error("/run_task: couldn't communicate with watchman")
+		}).Error("/run_task: error communicating with watchman")
 		return
 	}
 

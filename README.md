@@ -105,6 +105,16 @@ curl -X POST   -d '{}'   "http://localhost:8080/courses_stats?user_id=100"
 [{"course_id":"python","title":"Python","total_chapters":6,"finished_chapters":1,"status":"in_progress"}]
 ```
 
+`/get_course_info` - возвращает в строковом виде теги курса. Теги - это именно строка, а не json. 
+```bash
+curl -X POST   -d '{"course_id": "python"}'   "http://localhost:8080/get_course_info"
+```
+Пример ответа:
+```json
+{"tags":"{\"url\": \"https://www.python.org/\", \"version\": \"Python 3.11.4\", \"chapters\": \"30 глав\", \"projects\": [{\"url\": \"https://docs.celeryq.dev/en/stable/\", \"name\": \"Celery — распределенная очередь задач\"}, {\"url\": \"https://www.openstack.org/\", \"name\": \"OpenStack — платформа для организации облачной инфраструктуры\"}, {\"url\": \"https://www.ansible.com/\", \"name\": \"Ansible — система управления конфигурациями\"}]}"}
+```
+
+
 `/get_task` - получение статуса задачи для пользователя: статус, текст решения.
 ```bash
 curl -X POST   -d '{"task_id":"python_chapter_0010_task_0020"}'   "http://localhost:8080/get_task?user_id=100"
@@ -128,6 +138,7 @@ curl -X POST   -d '{"cur_user_id": 456, "old_user_id": 982, "new_user_id": 0}'  
 ```bash
 curl -X POST   -d '{"cur_user_id": 456, "old_user_id": 0, "new_user_id": 982}'   "http://localhost:8080/split_users"
 ```
+
 
 
 ## Настройка PostgreSQL в докере для отладки

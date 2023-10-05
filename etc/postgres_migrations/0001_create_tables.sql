@@ -41,7 +41,7 @@ BEGIN
         RETURN t2;
     END IF;
 
-    IF len(t1) > 0 THEN
+    IF length(t1) > 0 THEN
         RETURN t1;
     END IF;
 
