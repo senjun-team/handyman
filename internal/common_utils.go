@@ -43,7 +43,8 @@ type Options struct {
 
 	userId string
 
-	ColorOutput bool `json:"color_output,omitempty"`
+	ColorOutput          bool `json:"color_output,omitempty"`
+	RunStaticTypeChecker bool `json:"run_static_type_checker,omitempty"`
 }
 
 type WatchmanOptions struct {
