@@ -132,6 +132,7 @@ func GetUserId(r *http.Request) string {
 
 const rootCourses = "/data/courses/"
 const injectMarker = "#INJECT-b585472fa"
+const injectEscapedMarker = "#INJECT-ESCAPED-b585472fa"
 
 // Gets root path to courses (for example '/courses'),
 // opts.TaskId (for example 'python_chapter_0010_task_0060'),
@@ -176,7 +177,11 @@ func InjectCodeToTestWrapper(opts *Options) error {
 		return err
 	}
 
+	sourceCodeEscaped := strings.ReplaceAll(opts.SourceCodeOriginal, "\"\"\"", "\\\"\\\"\\\"")
+
 	opts.SourceCodeTest = strings.ReplaceAll(string(content), injectMarker, opts.SourceCodeOriginal)
+
+	opts.SourceCodeTest = strings.ReplaceAll(opts.SourceCodeTest, injectEscapedMarker, sourceCodeEscaped)
 	return nil
 }
 

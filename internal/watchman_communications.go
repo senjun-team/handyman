@@ -175,6 +175,7 @@ func HandleRunTask(w http.ResponseWriter, r *http.Request) {
 		"user_id":      opts.userId,
 		"task_id":      opts.TaskId,
 		"color_output": opts.ColorOutput,
+		"task_type":    opts.TaskType,
 	}).Info("/run_task: parsed options")
 
 	if len(opts.userId) == 0 {
