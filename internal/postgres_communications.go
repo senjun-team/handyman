@@ -90,9 +90,17 @@ var countUpdateCourseProgressOkCompleted = promauto.NewCounter(prometheus.Counte
 	Name: "handyman_update_course_progress_ok_completed",
 })
 
+var countUpdateCourseProgressNoAction = promauto.NewCounter(prometheus.CounterOpts{
+	Name: "handyman_update_course_progress_no_action",
+})
+
 // /update_chapter_progress
 var countUpdateChapterProgressTotal = promauto.NewCounter(prometheus.CounterOpts{
 	Name: "handyman_update_chapter_progress_total",
+})
+
+var countUpdateChapterProgressNoAction = promauto.NewCounter(prometheus.CounterOpts{
+	Name: "handyman_update_chapter_progress_no_action",
 })
 
 var countUpdateChapterProgressServerError = promauto.NewCounter(prometheus.CounterOpts{
@@ -118,6 +126,11 @@ var countUpdateChapterProgressOkCompleted = promauto.NewCounter(prometheus.Count
 // /get_chapter
 var countGetChapterTotal = promauto.NewCounter(prometheus.CounterOpts{
 	Name: "handyman_get_chapter_total",
+})
+
+// /get_chapter
+var countGetChapterAnonymous = promauto.NewCounter(prometheus.CounterOpts{
+	Name: "handyman_get_chapter_anonymous",
 })
 
 var countGetChapterServerError = promauto.NewCounter(prometheus.CounterOpts{
@@ -444,6 +457,21 @@ func GetChapterProgress(userId string, chapterId string) (string, error) {
 }
 
 func GetChapterInfo(userId string, chapterId string) (string, string, error) {
+	// Anonymous user
+	if len(userId) == 0 {
+		query := `
+		SELECT
+		title
+		FROM chapters
+		WHERE  chapters.chapter_id=$1
+	`
+		var title string
+
+		row := DB.QueryRow(query, chapterId)
+		err := row.Scan(&title)
+		return "not_started", title, err
+	}
+
 	query := `
 		SELECT
 		(CASE WHEN chapter_progress.status IS NULL THEN 'not_started' ELSE chapter_progress.status::varchar(40) END),
@@ -522,7 +550,18 @@ func GetCourseProgressForUser(courseId string, userId string) (string, error) {
 }
 
 func GetTasks(chapterId string, userId string) []TaskForUser {
-	query := `
+	query := ""
+
+	// Anonymous user
+	if len(userId) == 0 {
+		query = `
+		SELECT 
+		tasks.task_id, 'not_started', ''
+		FROM tasks 
+		WHERE chapter_id = $2
+	`
+	} else {
+		query = `
 		SELECT 
 		tasks.task_id,
 		(CASE WHEN task_progress.status IS NULL THEN 'not_started' ELSE task_progress.status::varchar(40) END),
@@ -532,6 +571,7 @@ func GetTasks(chapterId string, userId string) []TaskForUser {
 		ON tasks.task_id = task_progress.task_id AND user_id = $1
 		WHERE chapter_id = $2
 	`
+	}
 
 	rows, err := DB.Query(query, userId, chapterId)
 	if err != nil {
@@ -1113,6 +1153,22 @@ func HandleUpdateCourseProgress(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if !IsNewStatusValid(curStatus, opts.Status) {
+		if opts.Status == "in_progress" && (curStatus == "in_progress" || curStatus == "completed") {
+			json.NewEncoder(w).Encode(map[string]string{
+				"status": "no_action",
+			})
+
+			Logger.WithFields(log.Fields{
+				"user_id":        opts.userId,
+				"course_id":      opts.CourseId,
+				"current_status": curStatus,
+				"new_status":     opts.Status,
+			}).Info("/update_course_progress: no action")
+
+			countUpdateCourseProgressNoAction.Inc()
+			return
+
+		}
 		countUpdateCourseProgressStatusError.Inc()
 
 		json.NewEncoder(w).Encode(map[string]string{
@@ -1255,6 +1311,35 @@ func HandleUpdateChapterProgress(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if !IsNewStatusValid(curStatus, opts.Status) {
+		if opts.Status == "in_progress" && (curStatus == "in_progress" || curStatus == "completed") {
+			chapters := GetChaptersForUser(opts.userId, opts.CourseId)
+			ret_chapter_id := opts.ChapterId
+
+			for i := 0; i < len(chapters); i++ {
+				if chapters[i].Status == "in_progress" || chapters[i].Status == "not_started" {
+					ret_chapter_id = chapters[i].ChapterId
+					break
+				}
+			}
+
+			Logger.WithFields(log.Fields{
+				"user_id":           opts.userId,
+				"chapter_id":        opts.ChapterId,
+				"status":            opts.Status,
+				"action":            "not_changed",
+				"return_chapter_id": ret_chapter_id,
+			}).Info("/update_chapter_progress: no action")
+
+			json.NewEncoder(w).Encode(map[string]string{
+				"status":     "no_action",
+				"chapter_id": ret_chapter_id,
+				"course_id":  opts.CourseId,
+			})
+
+			countUpdateChapterProgressNoAction.Inc()
+			return
+		}
+
 		countUpdateChapterProgressStatusError.Inc()
 
 		json.NewEncoder(w).Encode(map[string]string{
@@ -1464,7 +1549,7 @@ func HandleGetChapter(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if len(opts.userId) == 0 || len(opts.CourseId) == 0 && len(opts.ChapterId) == 0 {
+	if len(opts.CourseId) == 0 && len(opts.ChapterId) == 0 {
 		countGetChapterClientError.Inc()
 
 		json.NewEncoder(w).Encode(map[string]string{
@@ -1500,7 +1585,12 @@ func HandleGetChapter(w http.ResponseWriter, r *http.Request) {
 	}
 
 	chapter.NextChapterId, _ = GetNextChapterId(opts.CourseId, opts.ChapterId)
-	chapter.CourseStatus, _ = GetCourseProgressForUser(opts.CourseId, opts.userId)
+	if len(opts.userId) == 0 {
+		countGetChapterAnonymous.Inc()
+		chapter.CourseStatus = "not_started"
+	} else {
+		chapter.CourseStatus, _ = GetCourseProgressForUser(opts.CourseId, opts.userId)
+	}
 
 	countGetChapterOk.Inc()
 	Logger.WithFields(log.Fields{
