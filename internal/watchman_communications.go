@@ -18,11 +18,10 @@ const timeoutReplyFromWatchman = 30 * time.Second
 const addrWatchman = "http://127.0.0.1:8000/check"
 
 type RunTaskResult struct {
-	Status      int    `json:"error_code"`
-	Output      string `json:"output"`
-	TestsStatus int    `json:"tests_error_code,omitempty"`
-	TestsError  string `json:"tests_error,omitempty"`
-	err         error
+	StatusCode     int    `json:"status_code"`
+	UserCodeOutput string `json:"user_code_output"`
+	TestsOutput    string `json:"tests_output,omitempty"`
+	err            error
 }
 
 func extractRunTaskOptions(r *http.Request) (Options, error) {
@@ -253,17 +252,16 @@ func HandleRunTask(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if UpdateStatus(opts.userId, opts.TaskId, opts.ChapterId, opts.CourseId,
-		res.Status == 0 && res.TestsStatus == 0, opts.SourceCodeOriginal) {
+		res.StatusCode == 0, opts.SourceCodeOriginal) {
 		countRunTaskOk.Inc()
 	} else {
 		countRunTaskErrServer.Inc()
 	}
 
 	Logger.WithFields(log.Fields{
-		"user_id":           opts.userId,
-		"task_id":           opts.TaskId,
-		"user_code_status":  res.Status,
-		"tests_code_status": res.TestsStatus,
+		"user_id":     opts.userId,
+		"task_id":     opts.TaskId,
+		"status_code": res.StatusCode,
 	}).Info("/run_task: completed")
 
 	json.NewEncoder(w).Encode(res)

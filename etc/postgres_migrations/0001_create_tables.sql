@@ -107,9 +107,3 @@ CREATE TABLE task_progress (
 CREATE UNIQUE INDEX CONCURRENTLY unique_user_task_id ON task_progress(user_id, task_id);
 ALTER TABLE task_progress ADD CONSTRAINT unique_user_task_id UNIQUE USING INDEX unique_user_task_id;
 ALTER TABLE task_progress OWNER TO senjun;
-
-
--- FILL TABLES FOR TEST PURPOSES ONLY
-
-INSERT INTO chapter_progress(user_id, chapter_id, status) VALUES
-(100, 'python_chapter_0010', 'in_progress');
