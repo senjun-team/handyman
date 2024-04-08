@@ -79,6 +79,8 @@ func communicateWatchman(opts Options, c chan RunTaskResult) {
 		watchmanOpts.CmdLineArgs = append(watchmanOpts.CmdLineArgs, "-t strict")
 	}
 
+	watchmanOpts.CmdLineArgs = append(watchmanOpts.CmdLineArgs, "-v "+opts.TaskType)
+
 	postBody, err := json.Marshal(watchmanOpts)
 	if err != nil {
 		Logger.WithFields(log.Fields{
