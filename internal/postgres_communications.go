@@ -354,11 +354,11 @@ func GetCoursesForUserByStatus(userId string, status string) []CourseForUser {
 
 func GetChapters(courseId string) []ChapterForUser {
 	query := `
-		SELECT
-		chapters.chapter_id, chapters.title, 
-		'not_started' as status
-		FROM chapters
-		WHERE course_id=$1 ORDER BY chapters.chapter_id
+	SELECT
+	chapters.chapter_id, chapters.title, 'not_started' as status, 
+	(SELECT COUNT(*) FROM tasks WHERE tasks.chapter_id = chapters.chapter_id) AS tasks_count 
+	FROM chapters 
+	WHERE course_id=$1 ORDER BY chapters.chapter_id
 	`
 
 	rows, err := DB.Query(query, courseId)
@@ -373,7 +373,7 @@ func GetChapters(courseId string) []ChapterForUser {
 	for rows.Next() {
 		var chapter ChapterForUser
 
-		if err := rows.Scan(&chapter.ChapterId, &chapter.Title, &chapter.Status); err != nil {
+		if err := rows.Scan(&chapter.ChapterId, &chapter.Title, &chapter.Status, &chapter.TasksTotal); err != nil {
 			Logger.WithFields(log.Fields{
 				"error": err.Error(),
 			}).Error("Couldn't parse row from chapters selection")
@@ -388,13 +388,20 @@ func GetChapters(courseId string) []ChapterForUser {
 
 func GetChaptersForUser(userId string, courseId string) []ChapterForUser {
 	query := `
-		SELECT
-		chapters.chapter_id, chapters.title, 
-		(CASE WHEN chapter_progress.status IS NULL THEN 'not_started' ELSE chapter_progress.status::varchar(40) END) as status
-		FROM chapters
-		LEFT JOIN chapter_progress ON
-		chapters.chapter_id = chapter_progress.chapter_id AND chapter_progress.user_id=$1
-		WHERE course_id=$2 ORDER BY chapters.chapter_id
+	SELECT
+	chapters.chapter_id, chapters.title, 
+    (  SELECT (CASE WHEN chapter_progress.status IS NULL THEN 'not_started' ELSE chapter_progress.status::varchar(40) END) as status 
+	   FROM chapter_progress 
+	   WHERE chapters.chapter_id = chapter_progress.chapter_id AND chapter_progress.user_id=$1
+	) as status,
+    (  SELECT COUNT(*) FROM tasks WHERE tasks.chapter_id = chapters.chapter_id
+	) AS tasks_count,
+    (  SELECT COUNT(*) FROM task_progress WHERE task_progress.task_id like CONCAT(chapters.chapter_id, '_task%') 
+	   AND task_progress.status='completed'
+	) AS tasks_count_completed
+
+	FROM chapters
+	WHERE course_id=$2 ORDER BY chapters.chapter_id
 	`
 
 	rows, err := DB.Query(query, userId, courseId)
@@ -409,12 +416,19 @@ func GetChaptersForUser(userId string, courseId string) []ChapterForUser {
 	for rows.Next() {
 		var chapter ChapterForUser
 
-		if err := rows.Scan(&chapter.ChapterId, &chapter.Title, &chapter.Status); err != nil {
+		var status sql.NullString
+		if err := rows.Scan(&chapter.ChapterId, &chapter.Title, &status, &chapter.TasksTotal, &chapter.TasksCompleted); err != nil {
 			Logger.WithFields(log.Fields{
 				"user_id": userId,
 				"error":   err.Error(),
 			}).Error("Couldn't parse row from chapters selection for user")
 			return []ChapterForUser{}
+		}
+
+		if status.Valid {
+			chapter.Status = status.String
+		} else {
+			chapter.Status = "not_started"
 		}
 
 		chapters = append(chapters, chapter)
