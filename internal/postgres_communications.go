@@ -397,7 +397,7 @@ func GetChaptersForUser(userId string, courseId string) []ChapterForUser {
     (  SELECT COUNT(*) FROM tasks WHERE tasks.chapter_id = chapters.chapter_id
 	) AS tasks_count,
     (  SELECT COUNT(*) FROM task_progress WHERE task_progress.task_id like CONCAT(chapters.chapter_id, '_task%') 
-	   AND task_progress.status='completed'
+	   AND task_progress.status='completed' AND task_progress.user_id=$1
 	) AS tasks_count_completed
 
 	FROM chapters
