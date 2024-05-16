@@ -145,6 +145,19 @@ var countGetChapterOk = promauto.NewCounter(prometheus.CounterOpts{
 	Name: "handyman_get_chapter_ok",
 })
 
+// /request_more_chapters
+var countRequestMoreChaptersTotal = promauto.NewCounter(prometheus.CounterOpts{
+	Name: "handyman_request_more_chapters_total",
+})
+
+var countRequestMoreChaptersClientError = promauto.NewCounter(prometheus.CounterOpts{
+	Name: "handyman_request_more_chapters_err_client",
+})
+
+var countRequestMoreChaptersOk = promauto.NewCounter(prometheus.CounterOpts{
+	Name: "handyman_request_more_chapters_ok",
+})
+
 func ConnectDb() *sql.DB {
 	db, err := sql.Open("postgres", connStr)
 	if err != nil {
@@ -1265,6 +1278,90 @@ func UpdateChapterStatus(userId string, chapterId string, status string) error {
 	return err
 }
 
+func AddUserInteraction(userId string, k string, v string) error {
+	const query = `
+		INSERT INTO user_interactions(user_id, interaction_key, interaction_val) 
+		VALUES($1, $2, $3) 
+    `
+	_, err := DB.Exec(query, userId, k, v)
+	return err
+}
+
+func HandleRequestMoreChapters(w http.ResponseWriter, r *http.Request) {
+	countRequestMoreChaptersTotal.Inc()
+
+	w.WriteHeader(http.StatusOK)
+	w.Header().Set("Content-type", "application/json")
+
+	opts, err := ParseOptions(r)
+	if err != nil {
+		countRequestMoreChaptersClientError.Inc()
+
+		body, _ := json.Marshal(map[string]string{
+			"error": fmt.Sprintf("Invalid request: %s", err),
+		})
+		w.Write(body)
+
+		Logger.WithFields(log.Fields{
+			"user_id":    opts.userId,
+			"chapter_id": opts.ChapterId,
+			"status":     opts.Status,
+			"error":      err.Error(),
+		}).Warning("/request_more_chapters: couldn't parse request")
+		return
+	}
+
+	if len(opts.userId) == 0 || len(opts.ChapterId) == 0 {
+		countRequestMoreChaptersClientError.Inc()
+
+		json.NewEncoder(w).Encode(map[string]string{
+			"error": "Couldn't get user_id or chapter_id",
+		})
+
+		Logger.WithFields(log.Fields{
+			"user_id":    opts.userId,
+			"chapter_id": opts.ChapterId,
+		}).Warning("/request_more_chapters: required fields not set in request")
+		return
+	}
+
+	err = FillOptionsByChapterId(&opts)
+	if err != nil {
+		countRequestMoreChaptersClientError.Inc()
+
+		json.NewEncoder(w).Encode(map[string]string{
+			"error": "Couldn't get course_id from chapter_id",
+		})
+
+		Logger.WithFields(log.Fields{
+			"user_id":    opts.userId,
+			"chapter_id": opts.ChapterId,
+		}).Warning("/request_more_chapters: couldn't get course_id from chapter_id")
+		return
+	}
+
+	err = AddUserInteraction(opts.userId, "request_new_chapters", opts.CourseId)
+	if err != nil {
+		Logger.WithFields(log.Fields{
+			"user_id":    opts.userId,
+			"chapter_id": opts.ChapterId,
+			"error":      err.Error(),
+		}).Info("/request_more_chapters: didn't save request to db")
+
+		json.NewEncoder(w).Encode(map[string]string{
+			"status": "duplicate",
+		})
+
+		return
+	}
+
+	countRequestMoreChaptersOk.Inc()
+
+	json.NewEncoder(w).Encode(map[string]string{
+		"status": "ok",
+	})
+}
+
 func HandleUpdateChapterProgress(w http.ResponseWriter, r *http.Request) {
 	countUpdateChapterProgressTotal.Inc()
 
@@ -1393,6 +1490,12 @@ func HandleUpdateChapterProgress(w http.ResponseWriter, r *http.Request) {
 			}
 		}
 	}
+
+	Logger.WithFields(log.Fields{
+		"user_id":    opts.userId,
+		"new_status": opts.Status,
+		"chapter_id": opts.ChapterId,
+	}).Info("/update_chapter_progress: BEFORE UPDATING IN DB")
 
 	err = UpdateChapterStatus(opts.userId, opts.ChapterId, opts.Status)
 

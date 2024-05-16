@@ -1,7 +1,7 @@
 FROM quay.io/centos/centos:stream9
 
 RUN yum upgrade -y && \
-    yum install -y -q bash vim \
+    yum install -y -q bash \
     diffutils rpmdevtools rpmlint rpm-build redhat-rpm-config epel-release \
     go gem squashfs-tools && \
     gem install fpm

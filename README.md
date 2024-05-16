@@ -139,6 +139,10 @@ curl -X POST   -d '{"cur_user_id": 456, "old_user_id": 982, "new_user_id": 0}'  
 curl -X POST   -d '{"cur_user_id": 456, "old_user_id": 0, "new_user_id": 982}'   "http://localhost:8080/split_users"
 ```
 
+`/request_more_chapters` - сохранение в бд запроса от пользователя на то, чтобы авторы дописали курс.
+```bash
+curl -X POST   -d '{"chapter_id": "haskell_chapter_0240"}'   "http://localhost:8080/request_more_chapters?user_id=100"
+```
 
 
 ## Настройка PostgreSQL в докере для отладки

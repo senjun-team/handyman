@@ -107,3 +107,14 @@ CREATE TABLE task_progress (
 CREATE UNIQUE INDEX CONCURRENTLY unique_user_task_id ON task_progress(user_id, task_id);
 ALTER TABLE task_progress ADD CONSTRAINT unique_user_task_id UNIQUE USING INDEX unique_user_task_id;
 ALTER TABLE task_progress OWNER TO senjun;
+
+CREATE TABLE user_interactions (
+    user_id BIGINT NOT NULL,
+    interaction_key varchar NOT NULL,
+    interaction_val varchar NOT NULL,
+    day date NOT NULL DEFAULT CURRENT_DATE
+);
+CREATE UNIQUE INDEX CONCURRENTLY unique_user_key_id ON user_interactions(user_id, interaction_key);
+ALTER TABLE user_interactions ADD CONSTRAINT unique_user_key_id UNIQUE USING INDEX unique_user_key_id;
+ALTER TABLE user_interactions ADD UNIQUE (user_id, interaction_key);
+ALTER TABLE user_interactions OWNER TO senjun;
