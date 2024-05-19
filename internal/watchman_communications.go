@@ -193,6 +193,9 @@ func HandleRunTask(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// Replaces symbols for iOS users
+	// https://github.com/senjun-team/senjun-courses/issues/31
+	normalizeCode(&opts)
 	err = InjectCodeToTestWrapper(&opts)
 
 	if err != nil {

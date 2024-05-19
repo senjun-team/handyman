@@ -179,6 +179,26 @@ func ReadTextFile(path string) (string, error) {
 	return string(content), err
 }
 
+func runeReplacementMapping(r rune) rune {
+	switch r {
+	case '”':
+		return '"'
+	case '“':
+		return '"'
+	case '‘':
+		return '\''
+	case '’':
+		return '\''
+	default:
+		return r
+	}
+}
+
+func normalizeCode(opts *Options) {
+	opts.SourceCodeOriginal = strings.ReplaceAll(opts.SourceCodeOriginal, "…", "...")
+	opts.SourceCodeOriginal = strings.Map(runeReplacementMapping, opts.SourceCodeOriginal)
+}
+
 func InjectCodeToTestWrapper(opts *Options) error {
 	wrapperPath := GetPathToTestWrapper(opts)
 	content, err := ReadTextFile(wrapperPath)
