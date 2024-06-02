@@ -67,6 +67,12 @@ func main() {
 
 	r.Handle("/metrics", promhttp.Handler())
 
+	r.HandleFunc("/run_code", internal.HandleRunCode)
+	r.HandleFunc("/create_playground", internal.HandleCreatePlayground)
+	r.HandleFunc("/get_playground_code", internal.HandleGetPlaygroundCode)
+
+	r.HandleFunc("/inject_playground_code", internal.HandleInjectPlaygroundCode)
+
 	srv := &http.Server{
 		Handler:      r,
 		Addr:         addrHandyman,
