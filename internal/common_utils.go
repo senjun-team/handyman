@@ -47,11 +47,18 @@ type Options struct {
 	RunStaticTypeChecker bool `json:"run_static_type_checker,omitempty"`
 }
 
+type OptionsPlayground struct {
+	PlaygroundId string `json:"playground_id,omitempty"`
+	LangId       string `json:"lang_id,omitempty"`
+	UserCode     string `json:"user_code,omitempty"`
+	userId       string
+}
+
 type WatchmanOptions struct {
 	SourceCodeRun  string   `json:"source_run"`
 	SourceCodeTest string   `json:"source_test"`
 	ContainerType  string   `json:"container_type"`
-	CmdLineArgs    []string `json:"cmd_line_args"`
+	CmdLineArgs    []string `json:"cmd_line_args,omitempty"`
 }
 
 func ParseOptions(r *http.Request) (Options, error) {
@@ -114,19 +121,19 @@ func FillOptionsByChapterId(opts *Options) error {
 	return nil
 }
 
-func GetContainerType(chapterId string) string {
-	if strings.HasPrefix(chapterId, "python") {
+func GetContainerType(s string) string {
+	if strings.HasPrefix(s, "python") {
 		return "python"
 	}
-	if strings.HasPrefix(chapterId, "rust") {
+	if strings.HasPrefix(s, "rust") {
 		return "rust"
 	}
 
-	if strings.HasPrefix(chapterId, "golang") {
+	if strings.HasPrefix(s, "golang") {
 		return "golang"
 	}
 
-	if strings.HasPrefix(chapterId, "haskell") {
+	if strings.HasPrefix(s, "haskell") {
 		return "haskell"
 	}
 
@@ -142,15 +149,8 @@ const rootCourses = "/data/courses/"
 const injectMarker = "#INJECT-b585472fa"
 const injectEscapedMarker = "#INJECT-ESCAPED-b585472fa"
 
-// Gets root path to courses (for example '/courses'),
-// opts.TaskId (for example 'python_chapter_0010_task_0060'),
-// returns path to task wrapper
-func GetPathToTestWrapper(opts *Options) string {
-	return filepath.Join(rootCourses, opts.CourseId, opts.ChapterId, "tasks", opts.TaskId, "wrapper_test")
-}
-
-func GetPathToRunWrapper(opts *Options) string {
-	pathRun := filepath.Join(rootCourses, opts.CourseId, opts.ChapterId, "tasks", opts.TaskId, "wrapper_run")
+func GetPathToWrapper(opts *Options, filename string) string {
+	pathRun := filepath.Join(rootCourses, opts.CourseId, opts.ChapterId, "tasks", opts.TaskId, filename)
 
 	_, err := os.Stat(pathRun)
 
@@ -158,7 +158,7 @@ func GetPathToRunWrapper(opts *Options) string {
 		return pathRun
 	}
 
-	return filepath.Join(rootCourses, opts.CourseId, "wrapper_run_fallback")
+	return filepath.Join(rootCourses, opts.CourseId, filename+"_fallback")
 }
 
 func GetPathToChapterText(courseId string, chapterId string) (string, string) {
@@ -172,7 +172,7 @@ func ReadTextFile(path string) (string, error) {
 		Logger.WithFields(log.Fields{
 			"Error":    err,
 			"filepath": path,
-		}).Error("Couldn't read file")
+		}).Warn("Couldn't read file")
 		return "", err
 	}
 
@@ -200,7 +200,7 @@ func normalizeCode(opts *Options) {
 }
 
 func InjectCodeToTestWrapper(opts *Options) error {
-	wrapperPath := GetPathToTestWrapper(opts)
+	wrapperPath := GetPathToWrapper(opts, "wrapper_test")
 	content, err := ReadTextFile(wrapperPath)
 	if err != nil {
 		return err
@@ -214,18 +214,36 @@ func InjectCodeToTestWrapper(opts *Options) error {
 	return nil
 }
 
-func InjectCodeToRunWrapper(opts *Options) error {
+func InjectCodeToWrapper(opts *Options, wrapperName string) error {
 	if opts.TaskType != "code" {
 		opts.SourceCodeRun = ""
 		return nil
 	}
-	wrapperPath := GetPathToRunWrapper(opts)
+	wrapperPath := GetPathToWrapper(opts, wrapperName)
 	content, err := ReadTextFile(wrapperPath)
 	if err != nil {
 		return err
 	}
 
-	opts.SourceCodeRun = strings.ReplaceAll(string(content), injectMarker, opts.SourceCodeOriginal)
+	if wrapperName != "wrapper_playground" {
+		opts.SourceCodeRun = strings.ReplaceAll(string(content), injectMarker, opts.SourceCodeOriginal)
+		return nil
+	}
+
+	// Add indendations to code
+	s := string(content)
+	i := strings.Index(s, injectMarker) // one and only marker index in wrapper
+
+	if i == -1 {
+		return nil
+	}
+
+	if i > 0 {
+		j := strings.LastIndex(s[:i], "\n") + 1 // the next char to the nearest new line to marker. or index 0
+		opts.SourceCodeOriginal = strings.ReplaceAll(opts.SourceCodeOriginal, "\n", "\n"+s[j:i])
+	}
+
+	opts.SourceCodeRun = strings.ReplaceAll(s, injectMarker, opts.SourceCodeOriginal)
 	return nil
 }
 

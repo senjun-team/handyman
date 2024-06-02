@@ -118,3 +118,16 @@ CREATE UNIQUE INDEX CONCURRENTLY unique_user_key_id ON user_interactions(user_id
 ALTER TABLE user_interactions ADD CONSTRAINT unique_user_key_id UNIQUE USING INDEX unique_user_key_id;
 ALTER TABLE user_interactions ADD UNIQUE (user_id, interaction_key);
 ALTER TABLE user_interactions OWNER TO senjun;
+
+
+CREATE TABLE playgrounds (
+    playground_id varchar NOT NULL,
+    lang_id varchar NOT NULL,
+    user_id BIGINT, -- may be null for anonymous
+    dt_create TIMESTAMPTZ NOT NULL DEFAULT Now(),
+    dt_last_request TIMESTAMPTZ NOT NULL DEFAULT Now(),
+    user_code text
+);
+CREATE UNIQUE INDEX CONCURRENTLY unique_playground_id ON playgrounds(playground_id);
+ALTER TABLE playgrounds ADD CONSTRAINT unique_playground_id UNIQUE USING INDEX unique_playground_id;
+ALTER TABLE playgrounds OWNER TO senjun;

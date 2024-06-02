@@ -44,6 +44,23 @@ var countRunTaskErrServer = promauto.NewCounter(prometheus.CounterOpts{
 	Name: "handyman_run_task_errors_server",
 })
 
+// /run_code
+var countRunCodeTotal = promauto.NewCounter(prometheus.CounterOpts{
+	Name: "handyman_run_code_total",
+})
+
+var countRunCodeOk = promauto.NewCounter(prometheus.CounterOpts{
+	Name: "handyman_run_code_ok",
+})
+
+var countRunCodeErrClient = promauto.NewCounter(prometheus.CounterOpts{
+	Name: "handyman_run_code_errors_client",
+})
+
+var countRunCodeErrServer = promauto.NewCounter(prometheus.CounterOpts{
+	Name: "handyman_run_code_errors_server",
+})
+
 // /get_courses
 var countGetCoursesTotal = promauto.NewCounter(prometheus.CounterOpts{
 	Name: "handyman_get_courses_total",
@@ -205,6 +222,45 @@ func TryStartCourse(userId string, courseId string) {
 		}).Error("update course status: couldn't update course status for user")
 		return
 	}
+}
+
+func createPlayground(playgroundId string, langId string, userId string, userCode string) error {
+	if len(userId) > 0 {
+		query := `
+	INSERT INTO 
+	playgrounds(playground_id, lang_id, user_id, user_code)
+	VALUES($1, $2, $3, $4)
+	ON CONFLICT ON CONSTRAINT unique_playground_id
+	DO UPDATE SET 
+	user_code = EXCLUDED.user_code, 
+	dt_last_request = Now()
+`
+		_, err := DB.Exec(query, playgroundId, langId, userId, userCode)
+		return err
+	}
+
+	query := `
+	INSERT INTO 
+	playgrounds(playground_id, lang_id, user_code)
+	VALUES($1, $2, $3)
+	ON CONFLICT ON CONSTRAINT unique_playground_id
+	DO UPDATE SET 
+	user_code = EXCLUDED.user_code, 
+	dt_last_request = Now()
+`
+	_, err := DB.Exec(query, playgroundId, langId, userCode)
+	return err
+
+}
+
+func GetPlaygroundCode(playroundId string) (string, error) {
+	query := `
+SELECT user_code FROM playgrounds where playground_id=$1
+`
+	var userCode string
+	row := DB.QueryRow(query, playroundId)
+	err := row.Scan(&userCode)
+	return userCode, err
 }
 
 func UpdateStatus(userId string, taskId string, chapterId string, courseId string, isSolved bool, solutionText string) bool {
