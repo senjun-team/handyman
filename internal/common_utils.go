@@ -43,8 +43,9 @@ type Options struct {
 
 	userId string
 
-	ColorOutput          bool `json:"color_output,omitempty"`
-	RunStaticTypeChecker bool `json:"run_static_type_checker,omitempty"`
+	ColorOutput          bool   `json:"color_output,omitempty"`
+	RunStaticTypeChecker bool   `json:"run_static_type_checker,omitempty"`
+	ExampleId            string `json:"example_id,omitempty"`
 }
 
 type OptionsPlayground struct {
@@ -152,6 +153,10 @@ const injectEscapedMarker = "#INJECT-ESCAPED-b585472fa"
 func GetPathToWrapper(opts *Options, filename string) string {
 	pathRun := filepath.Join(rootCourses, opts.CourseId, opts.ChapterId, "tasks", opts.TaskId, filename)
 
+	if len(opts.ExampleId) > 0 {
+		pathRun = filepath.Join(rootCourses, opts.CourseId, opts.ChapterId, "examples", opts.ExampleId, filename)
+	}
+
 	_, err := os.Stat(pathRun)
 
 	if err == nil {
@@ -219,15 +224,22 @@ func InjectCodeToWrapper(opts *Options, wrapperName string) error {
 		opts.SourceCodeRun = ""
 		return nil
 	}
+
+	if wrapperName != "wrapper_playground" {
+		wrapperPath := GetPathToWrapper(opts, wrapperName)
+		content, err := ReadTextFile(wrapperPath)
+		if err != nil {
+			return err
+		}
+
+		opts.SourceCodeRun = strings.ReplaceAll(string(content), injectMarker, opts.SourceCodeOriginal)
+		return nil
+	}
+
 	wrapperPath := GetPathToWrapper(opts, wrapperName)
 	content, err := ReadTextFile(wrapperPath)
 	if err != nil {
 		return err
-	}
-
-	if wrapperName != "wrapper_playground" {
-		opts.SourceCodeRun = strings.ReplaceAll(string(content), injectMarker, opts.SourceCodeOriginal)
-		return nil
 	}
 
 	// Add indendations to code

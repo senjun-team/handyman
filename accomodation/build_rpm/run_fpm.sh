@@ -1,6 +1,6 @@
 set -e 
 
-version="0.1.25"
+version="0.1.26"
 
 fpm \
   -s dir -t rpm \
