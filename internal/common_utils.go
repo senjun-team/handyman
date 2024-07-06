@@ -130,7 +130,7 @@ func GetContainerType(s string) string {
 		return "rust"
 	}
 
-	if strings.HasPrefix(s, "golang") {
+	if strings.HasPrefix(s, "go") {
 		return "golang"
 	}
 
