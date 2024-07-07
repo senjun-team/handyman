@@ -194,6 +194,8 @@ func runeReplacementMapping(r rune) rune {
 		return '\''
 	case '’':
 		return '\''
+	case '\u00A0': // No-Break Space
+		return ' '
 	default:
 		return r
 	}
@@ -202,6 +204,11 @@ func runeReplacementMapping(r rune) rune {
 func normalizeCode(opts *Options) {
 	opts.SourceCodeOriginal = strings.ReplaceAll(opts.SourceCodeOriginal, "…", "...")
 	opts.SourceCodeOriginal = strings.Map(runeReplacementMapping, opts.SourceCodeOriginal)
+}
+
+func normalizeCodePlayground(opts *OptionsPlayground) {
+	opts.UserCode = strings.ReplaceAll(opts.UserCode, "…", "...")
+	opts.UserCode = strings.Map(runeReplacementMapping, opts.UserCode)
 }
 
 func InjectCodeToTestWrapper(opts *Options) error {

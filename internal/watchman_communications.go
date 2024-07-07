@@ -352,7 +352,7 @@ func HandleRunTask(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Replaces symbols for iOS users
+	// Replaces strange symbols (no-break space, ... for iOS users, etc)
 	// https://github.com/senjun-team/senjun-courses/issues/31
 	normalizeCode(&opts)
 	err = InjectCodeToTestWrapper(&opts)
@@ -461,6 +461,10 @@ func HandleRunCode(w http.ResponseWriter, r *http.Request) {
 		"lang_id":       opts.LangId,
 		"playground_id": opts.PlaygroundId,
 	}).Info("/run_code: parsed options")
+
+	// Replaces strange symbols (no-break space, ... for iOS users, etc)
+	// https://github.com/senjun-team/senjun-courses/issues/31
+	normalizeCodePlayground(&opts)
 
 	c := make(chan RunTaskResult)
 	go communicateWatchmanPlayround(opts, c)
