@@ -1,5 +1,6 @@
 import logging
 import os
+import json
 from pathlib import Path
 from typing import List
 
@@ -26,12 +27,12 @@ def import_courses(courses_dir: str, conn) -> List:
 
     for course_id in os.listdir(courses_dir):
         path = os.path.join(courses_dir, course_id)
-        title = course_id.capitalize()
         course_type = "free"
 
         with open(os.path.join(path, "tags.json")) as file_tags:
             tags = file_tags.read()
 
+        title = json.loads(tags)["title"]
         course_data = (course_id, path, title, course_type, tags)
         courses.append(course_data)
 
