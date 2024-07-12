@@ -138,6 +138,10 @@ func GetContainerType(s string) string {
 		return "haskell"
 	}
 
+	if strings.HasPrefix(s, "cpp") {
+		return "cpp"
+	}
+
 	return ""
 }
 
