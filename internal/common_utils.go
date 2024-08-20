@@ -52,14 +52,30 @@ type OptionsPlayground struct {
 	PlaygroundId string `json:"playground_id,omitempty"`
 	LangId       string `json:"lang_id,omitempty"`
 	UserCode     string `json:"user_code,omitempty"`
+	Project      string `json:"project,omitempty"`
 	userId       string
 }
 
 type WatchmanOptions struct {
 	SourceCodeRun  string   `json:"source_run"`
-	SourceCodeTest string   `json:"source_test"`
+	Project        string   `json:"project,omitempty"`
+	SourceCodeTest string   `json:"source_test,omitempty"`
 	ContainerType  string   `json:"container_type"`
 	CmdLineArgs    []string `json:"cmd_line_args,omitempty"`
+}
+
+type Practice struct {
+	Title              string `json:"title,omitempty"`
+	ChapterId          string `json:"chapter_id,omitempty"`
+	NextChapterId      string `json:"next_chapter_id,omitempty"`
+	Status             string `json:"status,omitempty"`
+	ProjectPath        string `json:"project_path,omitempty"`
+	Project            string `json:"project,omitempty"`
+	ProjectDescription string `json:"project_description,omitempty"`
+	ProjectHint        string `json:"project_hint,omitempty"`
+	Tags               string `json:"tags,omitempty"`
+	MainFile           string `json:"main_file,omitempty"`
+	DefaultCmdLineArgs string `json:"default_cmd_line_args,omitempty"`
 }
 
 func ParseOptions(r *http.Request) (Options, error) {

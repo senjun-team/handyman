@@ -52,6 +52,7 @@ func main() {
 	r.HandleFunc("/run_task", internal.HandleRunTask)
 	r.HandleFunc("/get_progress", internal.HandleGetProgress)
 	r.HandleFunc("/get_chapter", internal.HandleGetChapter)
+	r.HandleFunc("/get_practice", internal.HandleGetPractice)
 	r.HandleFunc("/get_course_info", internal.HandleGetCourseInfo)
 	r.HandleFunc("/get_chapters", internal.HandleGetChapters)
 
@@ -68,10 +69,14 @@ func main() {
 	r.Handle("/metrics", promhttp.Handler())
 
 	r.HandleFunc("/run_code", internal.HandleRunCode)
-	r.HandleFunc("/create_playground", internal.HandleCreatePlayground)
 	r.HandleFunc("/get_playground_code", internal.HandleGetPlaygroundCode)
 
 	r.HandleFunc("/inject_playground_code", internal.HandleInjectPlaygroundCode)
+
+	r.HandleFunc("/get_practice", internal.HandleGetPractice)
+
+	// Run, test or save practice project
+	r.HandleFunc("/handle_practice_code", internal.HandlePracticeCode)
 
 	srv := &http.Server{
 		Handler:      r,

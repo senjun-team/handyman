@@ -32,7 +32,7 @@ def import_courses(courses_dir: str, conn) -> List:
         with open(os.path.join(path, "tags.json")) as file_tags:
             tags = file_tags.read()
 
-        title = json.loads(tags)["title"]
+        title = json.loads(tags).get("title", course_id.capitalize())
         course_data = (course_id, path, title, course_type, tags)
         courses.append(course_data)
 
@@ -136,6 +136,37 @@ def import_tasks(courses_dir: str, course_ids: List, conn) -> None:
         import_tasks_for_course(course_dir, course_id, conn)
 
 
+def import_practice_for_course(practice_dir: str, course_id: str, conn) -> None:
+    if not os.path.exists(practice_dir):
+        return
+
+    for project_id in os.listdir(practice_dir):
+        if not project_id.startswith(course_id):
+            # Skip additional files and directories
+            continue
+
+        with open(os.path.join(practice_dir, project_id, "data.json")) as f:
+            data = json.load(f)
+        
+        logging.info(f"Course {course_id}. Practice {practice_dir}")
+
+        title = get_chapter_title(os.path.join(practice_dir, project_id))
+
+        insert = sql.SQL(
+            """INSERT INTO practice VALUES {}
+            ON CONFLICT (project_id) DO NOTHING"""
+        ).format(sql.SQL(",").join(map(sql.Literal, [(project_id, title, data["chapter_id"], data["main_file"], data["default_cmd_line_args"], course_id), ])))
+
+        run_cmd(conn, insert)
+        logging.info(f"Imported practice {project_id} for course {course_id}")
+
+
+def import_practice(courses_dir: str, course_ids: List,conn) -> None:
+    for course_id in course_ids:
+        practice_dir = os.path.join(courses_dir, course_id, "practice")
+        import_practice_for_course(practice_dir, course_id, conn)
+
+
 @extra_command()
 @option(
     "--courses_dir",
@@ -160,6 +191,7 @@ def main(courses_dir: str, postgres_conn: str) -> None:
         course_ids = import_courses(courses_dir, conn)
         import_chapters(courses_dir, course_ids, conn)
         import_tasks(courses_dir, course_ids, conn)
+        import_practice(courses_dir, course_ids,conn)
 
         logging.info(f"Completed courses import from {courses_dir} to db")
     except Exception:

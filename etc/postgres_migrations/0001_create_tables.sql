@@ -131,3 +131,30 @@ CREATE TABLE playgrounds (
 CREATE UNIQUE INDEX CONCURRENTLY unique_playground_id ON playgrounds(playground_id);
 ALTER TABLE playgrounds ADD CONSTRAINT unique_playground_id UNIQUE USING INDEX unique_playground_id;
 ALTER TABLE playgrounds OWNER TO senjun;
+
+
+CREATE TABLE practice (
+    project_id varchar NOT NULL PRIMARY KEY,
+    title varchar NOT NULL,
+    chapter_id varchar NOT NULL,
+    main_file varchar NOT NULL,
+    default_cmd_line_args varchar NOT NULL,
+    course_id varchar NOT NULL,
+    CONSTRAINT fk_chapter_id FOREIGN KEY(chapter_id) REFERENCES chapters(chapter_id),
+    CONSTRAINT fk_course_id FOREIGN KEY(course_id) REFERENCES courses(course_id)
+);
+
+CREATE UNIQUE INDEX CONCURRENTLY unique_project_id ON practice(project_id);
+ALTER TABLE practice OWNER TO senjun;
+
+CREATE TABLE practice_progress (
+    user_id BIGINT NOT NULL,
+    project_id varchar NOT NULL,
+    status edu_material_status NOT NULL,
+    solution_text text NOT NULL,
+    attempts_count smallint DEFAULT 0 NOT NULL,
+    CONSTRAINT fk_project_id FOREIGN KEY(project_id) REFERENCES practice(project_id)
+);
+CREATE UNIQUE INDEX CONCURRENTLY unique_user_practice_id ON practice_progress(user_id, project_id);
+ALTER TABLE practice_progress ADD CONSTRAINT unique_user_practice_id UNIQUE USING INDEX unique_user_practice_id;
+ALTER TABLE practice_progress OWNER TO senjun;

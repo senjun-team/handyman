@@ -44,6 +44,23 @@ var countRunTaskErrServer = promauto.NewCounter(prometheus.CounterOpts{
 	Name: "handyman_run_task_errors_server",
 })
 
+// /run_practice
+var countRunPracticeTotal = promauto.NewCounter(prometheus.CounterOpts{
+	Name: "handyman_run_practice_total",
+})
+
+var countRunPracticeOk = promauto.NewCounter(prometheus.CounterOpts{
+	Name: "handyman_run_practice_ok",
+})
+
+var countRunPracticeErrClient = promauto.NewCounter(prometheus.CounterOpts{
+	Name: "handyman_run_practice_errors_client",
+})
+
+var countRunPracticeErrServer = promauto.NewCounter(prometheus.CounterOpts{
+	Name: "handyman_run_practice_errors_server",
+})
+
 // /run_code
 var countRunCodeTotal = promauto.NewCounter(prometheus.CounterOpts{
 	Name: "handyman_run_code_total",
@@ -309,6 +326,72 @@ func UpdateStatus(userId string, taskId string, chapterId string, courseId strin
 	return true
 }
 
+func UpdateStatusPractice(userId string, projectId string, courseId string, isSolved bool, project string) bool {
+	taskStatus := getEduMaterialStatus(isSolved)
+	const attemptsCount = 1
+
+	query := `
+		INSERT INTO 
+		practice_progress(user_id, project_id, status, solution_text, attempts_count)
+		VALUES($1, $2, $3, $4, $5)
+		ON CONFLICT ON CONSTRAINT unique_user_practice_id
+		DO UPDATE SET 
+		status = EXCLUDED.status, 
+		solution_text = EXCLUDED.solution_text,
+		attempts_count = practice_progress.attempts_count + EXCLUDED.attempts_count
+	`
+	_, err := DB.Exec(query, userId, projectId, taskStatus, project, attemptsCount)
+	if err != nil {
+		Logger.WithFields(log.Fields{
+			"user_id":    userId,
+			"project_id": projectId,
+			"error":      err.Error(),
+		}).Error("update practice status: couldn't update project status for user")
+		return false
+	}
+
+	TryStartCourse(userId, courseId)
+
+	Logger.WithFields(log.Fields{
+		"user_id":    userId,
+		"project_id": projectId,
+		"status":     taskStatus,
+	}).Info("update practice status: completed")
+
+	return true
+}
+
+func SavePractice(userId string, projectId string, courseId string, project string) bool {
+	query := `
+		INSERT INTO 
+		practice_progress(user_id, project_id, status, solution_text, attempts_count)
+		VALUES($1, $2, 'in_progress', $3, 1)
+		ON CONFLICT ON CONSTRAINT unique_user_practice_id
+		DO UPDATE SET 
+		status = practice_progress.status, 
+		solution_text = EXCLUDED.solution_text,
+		attempts_count = practice_progress.attempts_count
+	`
+	_, err := DB.Exec(query, userId, projectId, project)
+	if err != nil {
+		Logger.WithFields(log.Fields{
+			"user_id":    userId,
+			"project_id": projectId,
+			"error":      err.Error(),
+		}).Error("save practice: couldn't update project for user")
+		return false
+	}
+
+	TryStartCourse(userId, courseId)
+
+	Logger.WithFields(log.Fields{
+		"user_id":    userId,
+		"project_id": projectId,
+	}).Info("save practice: completed")
+
+	return true
+}
+
 func GetCourses() []CourseForUser {
 	query := `
 		SELECT courses.course_id, courses.path_on_disk, courses.type, courses.title, courses.tags
@@ -338,6 +421,68 @@ func GetCourses() []CourseForUser {
 	}
 
 	return courses
+}
+
+func GetPractice(opts Options) (Practice, error) {
+	query := `
+	SELECT title, chapter_id, main_file, default_cmd_line_args,
+		'not_started' as status
+		FROM practice 
+		WHERE practice.project_id=$1
+`
+
+	rows, err := DB.Query(query, opts.TaskId)
+	if err != nil {
+		return Practice{}, err
+	}
+
+	defer rows.Close()
+
+	var p Practice
+
+	if rows.Next() {
+		if err := rows.Scan(&p.Title, &p.ChapterId, &p.MainFile, &p.DefaultCmdLineArgs, &p.Status); err != nil {
+			Logger.WithFields(log.Fields{
+				"error": err.Error(),
+			}).Info("Couldn't parse row from practice selection")
+			return Practice{}, err
+		}
+	}
+
+	return p, nil
+}
+
+func GetPracticeForUser(opts Options) (Practice, error) {
+	query := `
+	SELECT title, chapter_id, main_file, default_cmd_line_args,
+		(CASE WHEN practice_progress.status IS NULL THEN 'not_started' ELSE practice_progress.status::varchar(40) END) as status, 
+		(CASE WHEN practice_progress.solution_text IS NULL THEN '' ELSE practice_progress.solution_text END) as project   
+		FROM practice 
+		LEFT JOIN practice_progress 
+		ON practice_progress.user_id=$2 AND practice_progress.project_id=practice.project_id 
+		WHERE practice.project_id=$1
+`
+
+	rows, err := DB.Query(query, opts.TaskId, opts.userId)
+	if err != nil {
+		return Practice{}, err
+	}
+
+	defer rows.Close()
+
+	var p Practice
+
+	if rows.Next() {
+		if err := rows.Scan(&p.Title, &p.ChapterId, &p.MainFile, &p.DefaultCmdLineArgs, &p.Status, &p.Project); err != nil {
+			Logger.WithFields(log.Fields{
+				"user_id": opts.userId,
+				"error":   err.Error(),
+			}).Info("Couldn't parse row from practice selection for user")
+			return Practice{}, err
+		}
+	}
+
+	return p, nil
 }
 
 func GetCourseInfo(courseId string) (string, error) {
@@ -423,11 +568,18 @@ func GetCoursesForUserByStatus(userId string, status string) []CourseForUser {
 
 func GetChapters(courseId string) []ChapterForUser {
 	query := `
-	SELECT
-	chapters.chapter_id, chapters.title, 'not_started' as status, 
-	(SELECT COUNT(*) FROM tasks WHERE tasks.chapter_id = chapters.chapter_id) AS tasks_count 
-	FROM chapters 
-	WHERE course_id=$1 ORDER BY chapters.chapter_id
+	SELECT q.item_id, q.title, q.status, q.tasks_count FROM (
+		SELECT
+		chapters.chapter_id as item_id, chapters.chapter_id as item_id_sort, chapters.title as title, 'not_started' as status, 
+		(SELECT COUNT(*) FROM tasks WHERE tasks.chapter_id = chapters.chapter_id) AS tasks_count, 1 as x
+		FROM chapters 
+		WHERE course_id=$1
+		UNION
+		SELECT
+		practice.project_id as item_id, practice.chapter_id as item_id_sort, practice.title as title, 'not_started' as status, 1 as tasks_count, 2 as x
+		FROM practice
+		WHERE course_id=$1
+		) as q ORDER BY q.item_id_sort, q.x
 	`
 
 	rows, err := DB.Query(query, courseId)
@@ -457,20 +609,34 @@ func GetChapters(courseId string) []ChapterForUser {
 
 func GetChaptersForUser(userId string, courseId string) []ChapterForUser {
 	query := `
-	SELECT
-	chapters.chapter_id, chapters.title, 
-    (  SELECT (CASE WHEN chapter_progress.status IS NULL THEN 'not_started' ELSE chapter_progress.status::varchar(40) END) as status 
-	   FROM chapter_progress 
-	   WHERE chapters.chapter_id = chapter_progress.chapter_id AND chapter_progress.user_id=$1
-	) as status,
-    (  SELECT COUNT(*) FROM tasks WHERE tasks.chapter_id = chapters.chapter_id
-	) AS tasks_count,
-    (  SELECT COUNT(*) FROM task_progress WHERE task_progress.task_id like CONCAT(chapters.chapter_id, '_task%') 
-	   AND task_progress.status='completed' AND task_progress.user_id=$1
-	) AS tasks_count_completed
-
-	FROM chapters
-	WHERE course_id=$2 ORDER BY chapters.chapter_id
+	SELECT q.item_id, q.title, q.status, q.tasks_count, q.tasks_count_completed FROM (
+		SELECT
+		chapters.chapter_id as item_id, chapters.title as title, 
+		(  SELECT (CASE WHEN chapter_progress.status IS NULL THEN 'not_started' ELSE chapter_progress.status::varchar(40) END) as status 
+		   FROM chapter_progress 
+		   WHERE chapters.chapter_id = chapter_progress.chapter_id AND chapter_progress.user_id=$1
+		) as status,
+		(  SELECT COUNT(*) FROM tasks WHERE tasks.chapter_id = chapters.chapter_id
+		) AS tasks_count,
+		(  SELECT COUNT(*) FROM task_progress WHERE task_progress.task_id like CONCAT(chapters.chapter_id, '_task%') 
+		   AND task_progress.status='completed' AND task_progress.user_id=$1
+		) AS tasks_count_completed, chapters.chapter_id as item_id_sort, 1 as x
+		FROM chapters
+		WHERE course_id=$2
+		UNION
+		SELECT
+		practice.project_id as item_id, practice.title as title, 
+		(  SELECT (CASE WHEN practice_progress.status IS NULL THEN 'not_started' ELSE practice_progress.status::varchar(40) END) as status 
+		   FROM practice_progress 
+		   WHERE practice.project_id = practice_progress.project_id AND practice_progress.user_id=$1
+		) as status,
+		1 AS tasks_count,
+		(  SELECT COUNT(*) FROM practice_progress WHERE practice_progress.project_id = practice.project_id
+		   AND practice_progress.status='completed' AND practice_progress.user_id=$1
+		) AS tasks_count_completed, practice.chapter_id as item_id_sort, 2 as x
+		FROM practice
+		WHERE course_id=$2
+		) as q ORDER BY q.item_id_sort, q.x
 	`
 
 	rows, err := DB.Query(query, userId, courseId)
@@ -517,7 +683,7 @@ func GetFirstChapterId(courseId string) (string, error) {
 	return firstChapterId, err
 }
 
-func GetNextChapterId(courseId string, chapterId string) (string, error) {
+func GetNextChapterId(courseId string, chapterId string, getPractice bool) (string, error) {
 	query := `
 		SELECT chapter_id FROM chapters WHERE course_id=$1 AND chapter_id > $2 ORDER BY chapter_id ASC LIMIT 1
 	`
@@ -525,6 +691,20 @@ func GetNextChapterId(courseId string, chapterId string) (string, error) {
 
 	row := DB.QueryRow(query, courseId, chapterId)
 	err := row.Scan(&nextChapterId)
+
+	if getPractice && err == nil {
+		query := `
+		SELECT project_id FROM practice WHERE course_id=$1 AND chapter_id = $2 ORDER BY project_id ASC LIMIT 1
+	`
+		row := DB.QueryRow(query, courseId, chapterId)
+		var nextProjectId string
+		errProj := row.Scan(&nextProjectId)
+
+		if errProj == nil {
+			return nextProjectId, errProj
+		}
+	}
+
 	return nextChapterId, err
 }
 
@@ -1083,42 +1263,40 @@ func GetTaskForUser(userId string, taskId string) (TaskForUser, error) {
 	return task, nil
 }
 
-func AreAllTasksInCourseCompleted(userId string, courseId string) (bool, error) {
-	taskPrefix := courseId + "_chapter%"
-
+func AreAllChaptersInCourseCompleted(userId string, courseId string) (bool, error) {
 	query := `
 	SELECT 
-	(SELECT count(*) FROM tasks WHERE task_id like $1) AS tasks_total,
-	(SELECT count(*) FROM task_progress WHERE task_id like $1 and user_id = $2 and status = 'completed') AS tasks_completed
+	(SELECT count(*) FROM course WHERE course_id = $1) AS chapters_total,
+	(SELECT count(*) FROM course_progress WHERE course_id = $1 and user_id = $2 and status = 'completed') AS chapters_completed
 	`
-	rows, err := DB.Query(query, taskPrefix, userId)
+	rows, err := DB.Query(query, courseId, userId)
 	if err != nil {
 		return false, err
 	}
 
-	tasksTotal := 0
-	tasksCompleted := 0
+	chaptersTotal := 0
+	chaptersCompleted := 0
 
 	defer rows.Close()
 
 	for rows.Next() {
-		if err := rows.Scan(&tasksTotal, &tasksCompleted); err != nil {
+		if err := rows.Scan(&chaptersTotal, &chaptersCompleted); err != nil {
 			Logger.WithFields(log.Fields{
 				"user_id":   userId,
 				"course_id": courseId,
 				"error":     err.Error(),
-			}).Warning("AreAllTasksInCourseCompleted: couldn't parse response from postgres for user")
+			}).Warning("AreAllChaptersInCourseCompleted: couldn't parse response from postgres for user")
 			return false, err
 		}
 	}
 
 	Logger.WithFields(log.Fields{
-		"user_id":         userId,
-		"course_id":       courseId,
-		"tasks_total":     tasksTotal,
-		"tasks_completed": tasksCompleted,
-	}).Info("AreAllTasksInCourseCompleted: retrieved stats")
-	return tasksTotal == tasksCompleted, nil
+		"user_id":            userId,
+		"course_id":          courseId,
+		"chapters_total":     chaptersTotal,
+		"chapters_completed": chaptersCompleted,
+	}).Info("AreAllChaptersInCourseCompleted: retrieved stats")
+	return chaptersTotal == chaptersCompleted, nil
 }
 
 func HandleGetCourses(w http.ResponseWriter, r *http.Request) {
@@ -1270,7 +1448,7 @@ func HandleUpdateCourseProgress(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if opts.Status == "completed" {
-		isCourseCompleted, _ := AreAllTasksInCourseCompleted(opts.userId, opts.CourseId)
+		isCourseCompleted, _ := AreAllChaptersInCourseCompleted(opts.userId, opts.CourseId)
 
 		if isCourseCompleted {
 			countUpdateCourseProgressOkCompleted.Inc()
@@ -1698,6 +1876,287 @@ func HandleGetCourseInfo(w http.ResponseWriter, r *http.Request) {
 	w.Write(body)
 }
 
+func HandlePracticeCode(w http.ResponseWriter, r *http.Request) {
+	countRunPracticeTotal.Inc()
+
+	w.WriteHeader(http.StatusOK)
+	w.Header().Set("Content-type", "application/json")
+
+	var opts PracticeReq
+	opts.userId = GetUserId(r)
+
+	err := json.NewDecoder(r.Body).Decode(&opts)
+
+	if err != nil {
+		countRunPracticeErrClient.Inc()
+
+		body, _ := json.Marshal(map[string]string{
+			"error": fmt.Sprintf("Invalid request: %s", err),
+		})
+		w.Write(body)
+
+		Logger.WithFields(log.Fields{
+			"user_id":    opts.userId,
+			"project_id": opts.ProjectId,
+			"course_id":  opts.CourseId,
+			"action":     opts.Action,
+			"error":      err.Error(),
+		}).Warning("/handle_practice_code: couldn't parse request")
+
+		return
+	}
+
+	Logger.WithFields(log.Fields{
+		"user_id":    opts.userId,
+		"project_id": opts.ProjectId,
+		"course_id":  opts.CourseId,
+		"action":     opts.Action,
+	}).Warning("/handle_practice_code: parsed request")
+
+	if len(opts.userId) == 0 || len(opts.ProjectId) == 0 || len(opts.CourseId) == 0 {
+		countRunPracticeErrClient.Inc()
+
+		json.NewEncoder(w).Encode(map[string]string{
+			"error": "Couldn't get some fields",
+		})
+
+		Logger.WithFields(log.Fields{
+			"user_id":    opts.userId,
+			"project_id": opts.ProjectId,
+			"course_id":  opts.CourseId,
+			"action":     opts.Action,
+		}).Warning("/handle_practice_code: couldn't get required fields")
+		return
+	}
+
+	res := new(RunTaskResult)
+
+	if opts.Action == "save" {
+		if SavePractice(opts.userId, opts.ProjectId, opts.CourseId, opts.ProjectContents) {
+			countRunPracticeOk.Inc()
+		} else {
+			countRunPracticeErrServer.Inc()
+			json.NewEncoder(w).Encode(map[string]string{
+				"error": "Couldn't save project",
+			})
+
+			Logger.WithFields(log.Fields{
+				"user_id":    opts.userId,
+				"project_id": opts.ProjectId,
+				"course_id":  opts.CourseId,
+				"action":     opts.Action,
+			}).Warning("/handle_practice_code: couldn't save project")
+			return
+		}
+	} else {
+		bodyReq, err := json.Marshal(opts)
+
+		if err != nil {
+			countRunPracticeErrServer.Inc()
+
+			body, _ := json.Marshal(map[string]string{
+				"error": "Couldn't communicate with tasks runner",
+			})
+			w.Write(body)
+
+			Logger.WithFields(log.Fields{
+				"user_id":    opts.userId,
+				"project_id": opts.ProjectId,
+				"action":     opts.Action,
+				"error":      err.Error(),
+			}).Error("/handle_practice_code: error creating json for watchman")
+			return
+		}
+
+		bodyResp, err := sendRequestToWatchman(addrWatchmanPractice, &bodyReq)
+
+		if err != nil {
+			countRunPracticeErrServer.Inc()
+
+			body, _ := json.Marshal(map[string]string{
+				"error": "Couldn't communicate with tasks runner",
+			})
+			w.Write(body)
+
+			Logger.WithFields(log.Fields{
+				"user_id":    opts.userId,
+				"project_id": opts.ProjectId,
+				"action":     opts.Action,
+				"error":      err.Error(),
+			}).Error("/handle_practice_code: error communicating watchman")
+			return
+		}
+
+		err = json.Unmarshal(bodyResp, &res)
+
+		if err != nil {
+			countRunPracticeErrServer.Inc()
+
+			body, _ := json.Marshal(map[string]string{
+				"error": "Couldn't communicate with tasks runner",
+			})
+			w.Write(body)
+
+			Logger.WithFields(log.Fields{
+				"user_id":    opts.userId,
+				"project_id": opts.ProjectId,
+				"action":     opts.Action,
+				"error":      err.Error(),
+			}).Error("/handle_practice_code: error extracting json from watchman resp")
+			return
+		}
+
+		if UpdateStatusPractice(opts.userId, opts.ProjectId, opts.CourseId,
+			opts.Action == "test" && res.StatusCode == 0, opts.ProjectContents) {
+			countRunPracticeOk.Inc()
+		} else {
+			countRunPracticeErrServer.Inc()
+		}
+	}
+
+	Logger.WithFields(log.Fields{
+		"user_id":     opts.userId,
+		"project_id":  opts.ProjectId,
+		"course_id":   opts.CourseId,
+		"action":      opts.Action,
+		"status_code": res.StatusCode,
+	}).Info("/handle_practice_code: completed")
+
+	json.NewEncoder(w).Encode(res)
+}
+
+func HandleGetPractice(w http.ResponseWriter, r *http.Request) {
+	w.WriteHeader(http.StatusOK)
+	w.Header().Set("Content-type", "application/json")
+
+	var opts Options
+	opts.userId = GetUserId(r)
+
+	err := json.NewDecoder(r.Body).Decode(&opts)
+
+	if err != nil {
+		//countGetChapterClientError.Inc()
+
+		body, _ := json.Marshal(map[string]string{
+			"error": fmt.Sprintf("Invalid request: %s", err),
+		})
+		w.Write(body)
+
+		Logger.WithFields(log.Fields{
+			"user_id":   opts.userId,
+			"task_id":   opts.TaskId,
+			"course_id": opts.CourseId,
+			"error":     err.Error(),
+		}).Warning("/get_practice: couldn't parse request")
+		return
+	}
+
+	if len(opts.CourseId) == 0 || len(opts.TaskId) == 0 {
+		//countGetChapterClientError.Inc()
+
+		json.NewEncoder(w).Encode(map[string]string{
+			"error": "Couldn't get required request params",
+		})
+
+		Logger.WithFields(log.Fields{
+			"user_id":   opts.userId,
+			"task_id":   opts.TaskId,
+			"course_id": opts.CourseId,
+		}).Warning("/get_practice: required fields not set in request")
+		return
+	}
+
+	var practice Practice
+
+	if len(opts.userId) > 0 {
+		practice, err = GetPracticeForUser(opts)
+	} else {
+		practice, err = GetPractice(opts)
+	}
+
+	if err != nil {
+		//countGetChapterServerError.Inc()
+
+		body, _ := json.Marshal(map[string]string{
+			"error": "Couldn't get practice for user",
+		})
+		w.Write(body)
+
+		Logger.WithFields(log.Fields{
+			"user_id":   opts.userId,
+			"task_id":   opts.TaskId,
+			"course_id": opts.CourseId,
+			"error":     err.Error(),
+		}).Error("/get_practice: couldn't get practice for user")
+		return
+	}
+
+	practice.NextChapterId, _ = GetNextChapterId(opts.CourseId, practice.ChapterId, false)
+
+	pathToText := filepath.Join(rootCourses, opts.CourseId, "practice", opts.TaskId, "text.md")
+	practice.ProjectDescription, err = ReadTextFile(pathToText)
+
+	if err != nil {
+		body, _ := json.Marshal(map[string]string{
+			"error": "Couldn't get practice for user",
+		})
+		w.Write(body)
+
+		Logger.WithFields(log.Fields{
+			"user_id":   opts.userId,
+			"task_id":   opts.TaskId,
+			"course_id": opts.CourseId,
+			"error":     err.Error(),
+		}).Error("/get_practice: couldn't get practice text for user")
+		return
+	}
+
+	pathToHint := filepath.Join(rootCourses, opts.CourseId, "practice", opts.TaskId, "hint.md")
+	practice.ProjectHint, err = ReadTextFile(pathToHint)
+
+	if err != nil {
+		body, _ := json.Marshal(map[string]string{
+			"error": "Couldn't get practice hint for user",
+		})
+		w.Write(body)
+
+		Logger.WithFields(log.Fields{
+			"user_id":   opts.userId,
+			"task_id":   opts.TaskId,
+			"course_id": opts.CourseId,
+			"error":     err.Error(),
+		}).Error("/get_practice: couldn't get practice hint for user")
+		return
+	}
+
+	practice.ProjectPath = filepath.Join(rootCourses, opts.CourseId, "practice", opts.TaskId, "project")
+
+	practice.Tags, err = GetCourseInfo(opts.CourseId)
+	if err != nil {
+		body, _ := json.Marshal(map[string]string{
+			"error": "Couldn't get course info",
+		})
+		w.Write(body)
+
+		Logger.WithFields(log.Fields{
+			"course_id": opts.CourseId,
+			"error":     err.Error(),
+		}).Warning("/get_practice: couldn't get course info")
+		return
+	}
+
+	// countGetChapterOk.Inc()
+	Logger.WithFields(log.Fields{
+		"user_id":         opts.userId,
+		"course_id":       opts.CourseId,
+		"task_id":         opts.TaskId,
+		"next_chapter_id": practice.NextChapterId,
+	}).Info("/get_practice: completed")
+
+	json.NewEncoder(w).Encode(practice)
+
+}
+
 func HandleGetChapter(w http.ResponseWriter, r *http.Request) {
 	countGetChapterTotal.Inc()
 
@@ -1757,7 +2216,7 @@ func HandleGetChapter(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	chapter.NextChapterId, _ = GetNextChapterId(opts.CourseId, opts.ChapterId)
+	chapter.NextChapterId, _ = GetNextChapterId(opts.CourseId, opts.ChapterId, true)
 	if len(opts.userId) == 0 {
 		countGetChapterAnonymous.Inc()
 		chapter.CourseStatus = "not_started"
@@ -1838,7 +2297,7 @@ func HandleGetProgress(w http.ResponseWriter, r *http.Request) {
 		userProgress.StatusOnChapter = "chapter_completed"
 	}
 
-	nextChapterId, err := GetNextChapterId(opts.CourseId, opts.ChapterId)
+	nextChapterId, err := GetNextChapterId(opts.CourseId, opts.ChapterId, true)
 	if err != nil && err != sql.ErrNoRows {
 		Logger.WithFields(log.Fields{
 			"user_id":    opts.userId,
@@ -1857,7 +2316,7 @@ func HandleGetProgress(w http.ResponseWriter, r *http.Request) {
 	userProgress.CourseId = opts.CourseId
 
 	if userProgress.StatusOnChapter == "chapter_completed" {
-		userProgress.IsCourseCompleted, err = AreAllTasksInCourseCompleted(opts.userId, opts.CourseId)
+		userProgress.IsCourseCompleted, err = AreAllChaptersInCourseCompleted(opts.userId, opts.CourseId)
 
 		if err != nil {
 			Logger.WithFields(log.Fields{

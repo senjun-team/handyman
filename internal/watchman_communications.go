@@ -9,7 +9,6 @@ import (
 	"fmt"
 	"io"
 	"net/http"
-	"strconv"
 	"time"
 
 	log "github.com/sirupsen/logrus"
@@ -18,12 +17,21 @@ import (
 const timeoutReplyFromWatchman = 30 * time.Second
 const addrWatchman = "http://127.0.0.1:8000/check"
 const addrWatchmanPlayground = "http://127.0.0.1:8000/playground"
+const addrWatchmanPractice = "http://127.0.0.1:8000/practice"
 
 type RunTaskResult struct {
-	StatusCode     int    `json:"status_code"`
+	StatusCode     int    `json:"status_code"` // 0 = ok, 1 = err running code, 2 = didn't pass tests, other = unexpected
 	UserCodeOutput string `json:"user_code_output"`
 	TestsOutput    string `json:"tests_output,omitempty"`
-	err            error
+}
+
+type PracticeReq struct {
+	ProjectContents string `json:"project_contents"`
+	ProjectId       string `json:"project_id"`
+	CourseId        string `json:"course_id"`
+	CmdLineArgs     string `json:"cmd_line_args"`
+	Action          string `json:"action"` // run, test, save
+	userId          string
 }
 
 func extractOptionsPlayground(r *http.Request) (OptionsPlayground, error) {
@@ -48,7 +56,7 @@ func extractOptionsPlayground(r *http.Request) (OptionsPlayground, error) {
 	return opts, nil
 }
 
-func extractRunTaskOptions(r *http.Request) (Options, error) {
+func extractOptionsRunTask(r *http.Request) (Options, error) {
 	opts, err := ParseOptions(r)
 
 	if err != nil {
@@ -67,12 +75,14 @@ func extractRunTaskOptions(r *http.Request) (Options, error) {
 		return Options{}, errors.New("empty source code")
 	}
 
-	sourceCodeDecoded, err := base64.StdEncoding.DecodeString(opts.SourceCodeOriginal)
-	if err != nil {
-		return Options{}, errors.New("couldn't decode string from base64-encoded 'solution_text'")
-	}
+	if opts.SourceCodeOriginal != " " {
+		sourceCodeDecoded, err := base64.StdEncoding.DecodeString(opts.SourceCodeOriginal)
+		if err != nil {
+			return Options{}, errors.New("couldn't decode string from base64-encoded 'solution_text'")
+		}
 
-	opts.SourceCodeOriginal = string(sourceCodeDecoded)
+		opts.SourceCodeOriginal = string(sourceCodeDecoded)
+	}
 
 	opts.containerType = GetContainerType(opts.ChapterId)
 
@@ -83,10 +93,53 @@ func extractRunTaskOptions(r *http.Request) (Options, error) {
 	return opts, nil
 }
 
-func communicateWatchman(opts Options, c chan RunTaskResult) {
-	defer close(c)
-	res := new(RunTaskResult)
+func sendRequestToWatchman(api string, postBody *[]byte) ([]byte, error) {
+	reqBody := bytes.NewBuffer(*postBody)
 
+	client := http.Client{
+		Timeout: timeoutReplyFromWatchman,
+	}
+
+	resp, err := client.Post(api, "application/json", reqBody)
+
+	if err != nil {
+		Logger.WithFields(log.Fields{
+			"api":   api,
+			"error": err,
+		},
+		).Error("Couldn't send request to watchman")
+
+		return []byte{}, err
+	}
+
+	defer resp.Body.Close()
+
+	if resp.StatusCode != 200 {
+		Logger.WithFields(log.Fields{
+			"api":       api,
+			"error":     err,
+			"http_code": resp.StatusCode,
+		},
+		).Error("Watchman returned error HTTP code")
+
+		return []byte{}, err
+	}
+
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
+		Logger.WithFields(log.Fields{
+			"api":   api,
+			"error": err,
+		},
+		).Error("Couldont' read watchman response body")
+
+		return []byte{}, err
+	}
+
+	return body, nil
+}
+
+func getRequestBodyRunTask(opts *Options) ([]byte, error) {
 	var watchmanOpts WatchmanOptions
 	watchmanOpts.ContainerType = opts.containerType
 	watchmanOpts.SourceCodeRun = opts.SourceCodeRun
@@ -105,145 +158,23 @@ func communicateWatchman(opts Options, c chan RunTaskResult) {
 
 	watchmanOpts.CmdLineArgs = append(watchmanOpts.CmdLineArgs, "-v "+opts.TaskType)
 
-	postBody, err := json.Marshal(watchmanOpts)
-	if err != nil {
-		Logger.WithFields(log.Fields{
-			"Error": err},
-		).Error("Couldn't json.marshal opts.RutTaskOptions for watchman")
-
-		res.err = err
-		c <- *res
-		return
-	}
-
-	reqBody := bytes.NewBuffer(postBody)
-
-	client := http.Client{
-		Timeout: timeoutReplyFromWatchman,
-	}
-
-	resp, err := client.Post(addrWatchman, "application/json", reqBody)
-
-	if err != nil {
-		Logger.WithFields(log.Fields{
-			"Error": err},
-		).Error("Couldn't send request to watchman")
-
-		res.err = err
-		c <- *res
-		return
-	}
-
-	defer resp.Body.Close()
-
-	if resp.StatusCode != 200 {
-		res.err = errors.New("HTTP error " + strconv.Itoa(resp.StatusCode))
-		c <- *res
-		return
-	}
-
-	body, err := io.ReadAll(resp.Body)
-	if err != nil {
-		Logger.WithFields(log.Fields{
-			"Error": err,
-		}).Error("Couldn't read body")
-		res.err = err
-		c <- *res
-		return
-	}
-
-	err = json.Unmarshal(body, &res)
-
-	if err != nil {
-		Logger.WithFields(log.Fields{
-			"Error": err,
-			"Body":  body,
-		}).Error("Couldn't parse json body")
-		res.err = err
-		c <- *res
-		return
-	}
-
-	res.err = nil
-	c <- *res
+	return json.Marshal(watchmanOpts)
 }
 
-func communicateWatchmanPlayround(opts OptionsPlayground, c chan RunTaskResult) {
-	defer close(c)
-	res := new(RunTaskResult)
-
+func getRequestBodyPlayground(opts *OptionsPlayground) ([]byte, error) {
 	var watchmanOpts WatchmanOptions
 	watchmanOpts.ContainerType = opts.LangId
 	watchmanOpts.SourceCodeRun = opts.UserCode
+	watchmanOpts.Project = opts.Project
 
-	postBody, err := json.Marshal(watchmanOpts)
-	if err != nil {
-		Logger.WithFields(log.Fields{
-			"Error": err},
-		).Error("Couldn't json.marshal opts.RutTaskOptions for watchman")
-
-		res.err = err
-		c <- *res
-		return
-	}
-
-	reqBody := bytes.NewBuffer(postBody)
-
-	client := http.Client{
-		Timeout: timeoutReplyFromWatchman,
-	}
-
-	resp, err := client.Post(addrWatchmanPlayground, "application/json", reqBody)
-
-	if err != nil {
-		Logger.WithFields(log.Fields{
-			"Error": err},
-		).Error("Couldn't send request to watchman")
-
-		res.err = err
-		c <- *res
-		return
-	}
-
-	defer resp.Body.Close()
-
-	if resp.StatusCode != 200 {
-		res.err = errors.New("HTTP error " + strconv.Itoa(resp.StatusCode))
-		c <- *res
-		return
-	}
-
-	body, err := io.ReadAll(resp.Body)
-	if err != nil {
-		Logger.WithFields(log.Fields{
-			"Error": err,
-		}).Error("Couldn't read body")
-		res.err = err
-		c <- *res
-		return
-	}
-
-	err = json.Unmarshal(body, &res)
-
-	if err != nil {
-		Logger.WithFields(log.Fields{
-			"Error": err,
-			"Body":  body,
-		}).Error("Couldn't parse json body")
-		res.err = err
-		c <- *res
-		return
-	}
-
-	res.err = nil
-	c <- *res
+	return json.Marshal(watchmanOpts)
 }
 
 func HandleInjectPlaygroundCode(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusOK)
 	w.Header().Set("Content-type", "application/json")
 
-	opts, err := extractRunTaskOptions(r)
+	opts, err := extractOptionsRunTask(r)
 	if err != nil {
 		body, _ := json.Marshal(map[string]string{
 			"error": fmt.Sprintf("Invalid request: %s", err),
@@ -309,7 +240,7 @@ func HandleRunTask(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusOK)
 	w.Header().Set("Content-type", "application/json")
 
-	opts, err := extractRunTaskOptions(r)
+	opts, err := extractOptionsRunTask(r)
 	if err != nil {
 		countRunTaskErrClient.Inc()
 
@@ -395,23 +326,56 @@ func HandleRunTask(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	c := make(chan RunTaskResult)
-	go communicateWatchman(opts, c)
-	res := <-c
-
-	if res.err != nil {
+	bodyReq, err := getRequestBodyRunTask(&opts)
+	if err != nil {
 		countRunTaskErrServer.Inc()
 
 		body, _ := json.Marshal(map[string]string{
-			"error": fmt.Sprintf("Couldn't communicate with tasks runner: %s", res.err),
+			"error": "Couldn't communicate with tasks runner",
 		})
 		w.Write(body)
 
 		Logger.WithFields(log.Fields{
 			"user_id": opts.userId,
 			"task_id": opts.TaskId,
-			"error":   res.err.Error(),
+			"error":   err.Error(),
 		}).Error("/run_task: error communicating with watchman")
+		return
+	}
+
+	bodyResp, err := sendRequestToWatchman(addrWatchman, &bodyReq)
+
+	if err != nil {
+		countRunTaskErrServer.Inc()
+
+		body, _ := json.Marshal(map[string]string{
+			"error": "Couldn't communicate with tasks runner",
+		})
+		w.Write(body)
+
+		Logger.WithFields(log.Fields{
+			"user_id": opts.userId,
+			"task_id": opts.TaskId,
+			"error":   err.Error(),
+		}).Error("/run_task: error communicating with watchman")
+		return
+	}
+
+	res := new(RunTaskResult)
+	err = json.Unmarshal(bodyResp, &res)
+	if err != nil {
+		countRunTaskErrServer.Inc()
+
+		body, _ := json.Marshal(map[string]string{
+			"error": "Couldn't communicate with tasks runner",
+		})
+		w.Write(body)
+
+		Logger.WithFields(log.Fields{
+			"user_id": opts.userId,
+			"task_id": opts.TaskId,
+			"error":   err.Error(),
+		}).Error("/run_task: error extracting json from watchman resp")
 		return
 	}
 
@@ -462,28 +426,74 @@ func HandleRunCode(w http.ResponseWriter, r *http.Request) {
 		"playground_id": opts.PlaygroundId,
 	}).Info("/run_code: parsed options")
 
+	if len(opts.Project) == 0 {
+		countRunCodeErrClient.Inc()
+
+		json.NewEncoder(w).Encode(map[string]int{
+			"status_code": 1,
+		})
+
+		Logger.WithFields(log.Fields{
+			"user_id": opts.userId,
+			"lang_id": opts.LangId,
+		}).Warning("/run_code: required fields not set in request")
+		return
+	}
+
 	// Replaces strange symbols (no-break space, ... for iOS users, etc)
 	// https://github.com/senjun-team/senjun-courses/issues/31
 	normalizeCodePlayground(&opts)
 
-	c := make(chan RunTaskResult)
-	go communicateWatchmanPlayround(opts, c)
-	res := <-c
-
-	if res.err != nil {
+	bodyReq, err := getRequestBodyPlayground(&opts)
+	if err != nil {
 		countRunCodeErrServer.Inc()
 
 		body, _ := json.Marshal(map[string]string{
-			"error": fmt.Sprintf("Couldn't communicate with tasks runner: %s", res.err),
+			"error": "Couldn't communicate with tasks runner",
 		})
 		w.Write(body)
 
 		Logger.WithFields(log.Fields{
-			"user_id":       opts.userId,
-			"lang_id":       opts.LangId,
-			"playground_id": opts.PlaygroundId,
-			"error":         res.err.Error(),
-		}).Error("/run_code: error communicating with watchman")
+			"user_id": opts.userId,
+			"lang_id": opts.LangId,
+			"error":   err.Error(),
+		}).Error("/run_code: error communicating watchman")
+		return
+	}
+
+	bodyResp, err := sendRequestToWatchman(addrWatchmanPlayground, &bodyReq)
+
+	if err != nil {
+		countRunCodeErrServer.Inc()
+
+		body, _ := json.Marshal(map[string]string{
+			"error": "Couldn't communicate with tasks runner",
+		})
+		w.Write(body)
+
+		Logger.WithFields(log.Fields{
+			"user_id": opts.userId,
+			"lang_id": opts.LangId,
+			"error":   err.Error(),
+		}).Error("/run_code: error communicating watchman")
+		return
+	}
+
+	res := new(RunTaskResult)
+	err = json.Unmarshal(bodyResp, &res)
+	if err != nil {
+		countRunTaskErrServer.Inc()
+
+		body, _ := json.Marshal(map[string]string{
+			"error": "Couldn't communicate with tasks runner",
+		})
+		w.Write(body)
+
+		Logger.WithFields(log.Fields{
+			"user_id": opts.userId,
+			"lang_id": opts.LangId,
+			"error":   err.Error(),
+		}).Error("/run_code: error extracting json from watchman resp")
 		return
 	}
 
@@ -570,75 +580,4 @@ func HandleGetPlaygroundCode(w http.ResponseWriter, r *http.Request) {
 	Logger.WithFields(log.Fields{
 		"playground_id": opts.PlaygroundId,
 	}).Info("/get_playground_code: completed")
-}
-
-func HandleCreatePlayground(w http.ResponseWriter, r *http.Request) {
-	w.WriteHeader(http.StatusOK)
-	w.Header().Set("Content-type", "application/json")
-
-	opts, err := extractOptionsPlayground(r)
-
-	if err != nil {
-		//countUpdateCourseProgressClientError.Inc()
-
-		body, _ := json.Marshal(map[string]string{
-			"error": fmt.Sprintf("Invalid request: %s", err),
-		})
-		w.Write(body)
-
-		Logger.WithFields(log.Fields{
-			"user_id": opts.userId,
-			"lang_id": opts.LangId,
-			"error":   err.Error(),
-		}).Warning("/create_playground: couldn't parse request")
-		return
-	}
-
-	if len(opts.LangId) == 0 {
-		//countUpdateCourseProgressClientError.Inc()
-
-		json.NewEncoder(w).Encode(map[string]string{
-			"error": "Required fields are not set in request",
-		})
-
-		Logger.WithFields(log.Fields{
-			"user_id": opts.userId,
-			"lang_id": opts.LangId,
-		}).Warning("/create_playground: required fields not set in request")
-		return
-	}
-
-	Logger.WithFields(log.Fields{
-		"playround_id": opts.PlaygroundId,
-		"lang_id":      opts.LangId,
-		"user_id":      opts.userId,
-	}).Info("/create_playground: parsed options")
-
-	err = createPlayground(opts.PlaygroundId, opts.LangId, opts.userId, opts.UserCode)
-	if err != nil {
-		body, _ := json.Marshal(map[string]int{
-			"status_code": 3,
-		})
-		w.Write(body)
-
-		Logger.WithFields(log.Fields{
-			"playround_id": opts.PlaygroundId,
-			"lang_id":      opts.LangId,
-			"user_id":      opts.userId,
-			"error":        err.Error(),
-		}).Error("/create_playground: couldn't insert row into table")
-		return
-	}
-
-	body, _ := json.Marshal(map[string]int{
-		"status_code": 0,
-	})
-	w.Write(body)
-
-	Logger.WithFields(log.Fields{
-		"playround_id": opts.PlaygroundId,
-		"lang_id":      opts.LangId,
-		"user_id":      opts.userId,
-	}).Info("/create_playground: completed")
-
 }
