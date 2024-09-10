@@ -413,7 +413,7 @@ func GetCourses() []CourseForUser {
 		if err := rows.Scan(&course.CourseId, &course.Path, &course.CourseType, &course.Title, &course.Tags); err != nil {
 			Logger.WithFields(log.Fields{
 				"error": err.Error(),
-			}).Info("Couldn't parse row from courses selection")
+			}).Error("Couldn't parse row from courses selection")
 			return []CourseForUser{}
 		}
 
@@ -444,7 +444,7 @@ func GetPractice(opts Options) (Practice, error) {
 		if err := rows.Scan(&p.Title, &p.ChapterId, &p.MainFile, &p.DefaultCmdLineArgs, &p.Status); err != nil {
 			Logger.WithFields(log.Fields{
 				"error": err.Error(),
-			}).Info("Couldn't parse row from practice selection")
+			}).Error("Couldn't parse row from practice selection")
 			return Practice{}, err
 		}
 	}
@@ -477,7 +477,7 @@ func GetPracticeForUser(opts Options) (Practice, error) {
 			Logger.WithFields(log.Fields{
 				"user_id": opts.userId,
 				"error":   err.Error(),
-			}).Info("Couldn't parse row from practice selection for user")
+			}).Error("Couldn't parse row from practice selection for user")
 			return Practice{}, err
 		}
 	}
@@ -521,7 +521,7 @@ func GetCoursesForUser(userId string) []CourseForUser {
 			Logger.WithFields(log.Fields{
 				"user_id": userId,
 				"error":   err.Error(),
-			}).Info("Couldn't parse row from courses selection for user")
+			}).Error("Couldn't parse row from courses selection for user")
 			return []CourseForUser{}
 		}
 
@@ -556,7 +556,7 @@ func GetCoursesForUserByStatus(userId string, status string) []CourseForUser {
 			Logger.WithFields(log.Fields{
 				"user_id": userId,
 				"error":   err.Error(),
-			}).Info("Couldn't parse row from courses selection for user")
+			}).Error("Couldn't parse row from courses selection for user")
 			return []CourseForUser{}
 		}
 
@@ -852,7 +852,7 @@ func GetTasks(chapterId string, userId string) []TaskForUser {
 			Logger.WithFields(log.Fields{
 				"user_id": userId,
 				"error":   err.Error(),
-			}).Info("Couldn't parse row from tasks selection for user")
+			}).Error("Couldn't parse row from tasks selection for user")
 			return []TaskForUser{}
 		}
 
@@ -916,7 +916,7 @@ func GetCourseStatuses(userId string) []CourseStatus {
 			Logger.WithFields(log.Fields{
 				"user_id": userId,
 				"error":   err.Error(),
-			}).Info("Couldn't parse row from courses selection for user")
+			}).Error("Couldn't parse row from courses selection for user")
 			return []CourseStatus{}
 		}
 
@@ -1255,7 +1255,7 @@ func GetTaskForUser(userId string, taskId string) (TaskForUser, error) {
 				"user_id": userId,
 				"task_id": taskId,
 				"error":   err.Error(),
-			}).Info("Couldn't parse row from task_progress selection for user")
+			}).Error("Couldn't parse row from task_progress selection for user")
 			return TaskForUser{}, err
 		}
 	}
@@ -1266,8 +1266,8 @@ func GetTaskForUser(userId string, taskId string) (TaskForUser, error) {
 func AreAllChaptersInCourseCompleted(userId string, courseId string) (bool, error) {
 	query := `
 	SELECT 
-	(SELECT count(*) FROM course WHERE course_id = $1) AS chapters_total,
-	(SELECT count(*) FROM course_progress WHERE course_id = $1 and user_id = $2 and status = 'completed') AS chapters_completed
+	(SELECT count(*) FROM chapters WHERE course_id = $1) AS chapters_total,
+	(SELECT count(*) FROM chapter_progress WHERE chapter_id like CONCAT($1, '_chapter%') and user_id = $2 and status = 'completed') AS chapters_completed
 	`
 	rows, err := DB.Query(query, courseId, userId)
 	if err != nil {
@@ -1297,6 +1297,48 @@ func AreAllChaptersInCourseCompleted(userId string, courseId string) (bool, erro
 		"chapters_completed": chaptersCompleted,
 	}).Info("AreAllChaptersInCourseCompleted: retrieved stats")
 	return chaptersTotal == chaptersCompleted, nil
+}
+
+func GetPracticeProjects(userId string, courseId string) []PracticeProject {
+	query := `
+    SELECT practice.project_id, title,
+        (CASE WHEN practice_progress.status IS NULL THEN 'not_started' ELSE practice_progress.status::varchar(40) END) as status
+        FROM practice 
+        LEFT JOIN practice_progress 
+        ON practice_progress.user_id=$2 AND practice_progress.project_id=practice.project_id
+		WHERE practice.course_id=$1
+        ORDER BY practice.chapter_id
+	`
+	rows, err := DB.Query(query, courseId, userId)
+	if err != nil {
+		Logger.WithFields(log.Fields{
+			"user_id":   userId,
+			"course_id": courseId,
+			"error":     err.Error(),
+		}).Error("Couldn't query from GetUnfinishedPracticeProjects selection for user")
+		return []PracticeProject{}
+	}
+
+	defer rows.Close()
+
+	projects := []PracticeProject{}
+
+	for rows.Next() {
+		var project PracticeProject
+
+		if err := rows.Scan(&project.ProjectId, &project.Title, &project.Status); err != nil {
+			Logger.WithFields(log.Fields{
+				"user_id":   userId,
+				"course_id": courseId,
+				"error":     err.Error(),
+			}).Error("Couldn't parse row from GetUnfinishedPracticeProjects selection for user")
+			return []PracticeProject{}
+		}
+
+		projects = append(projects, project)
+	}
+
+	return projects
 }
 
 func HandleGetCourses(w http.ResponseWriter, r *http.Request) {
@@ -1454,7 +1496,7 @@ func HandleUpdateCourseProgress(w http.ResponseWriter, r *http.Request) {
 			countUpdateCourseProgressOkCompleted.Inc()
 		} else {
 			json.NewEncoder(w).Encode(map[string]string{
-				"error": "Not all tasks are solved",
+				"error": "Not all materials in course are completed",
 			})
 
 			Logger.WithFields(log.Fields{
@@ -1462,7 +1504,7 @@ func HandleUpdateCourseProgress(w http.ResponseWriter, r *http.Request) {
 				"course_id":      opts.CourseId,
 				"current_status": curStatus,
 				"new_status":     opts.Status,
-			}).Info("/update_course_progress: not all tasks are solved")
+			}).Info("/update_course_progress: not all materials in course are completed")
 			return
 		}
 	}
@@ -2324,12 +2366,16 @@ func HandleGetProgress(w http.ResponseWriter, r *http.Request) {
 				"course_id":  opts.CourseId,
 				"chapter_id": opts.ChapterId,
 				"error":      err.Error(),
-			}).Error("/get_progress: couldn't check if all tasks are completed")
+			}).Error("/get_progress: couldn't check if all chapters are completed")
 
 			json.NewEncoder(w).Encode(map[string]string{
 				"error": "Couldn't get progress",
 			})
 			return
+		}
+
+		if userProgress.IsCourseCompleted {
+			userProgress.PracticeProjects = GetPracticeProjects(opts.userId, opts.CourseId)
 		}
 	}
 

@@ -29,7 +29,7 @@ type PracticeReq struct {
 	ProjectContents string `json:"project_contents"`
 	ProjectId       string `json:"project_id"`
 	CourseId        string `json:"course_id"`
-	CmdLineArgs     string `json:"cmd_line_args"`
+	CmdLineArgs     string `json:"user_cmd_line_args"`
 	Action          string `json:"action"` // run, test, save
 	userId          string
 }

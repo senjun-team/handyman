@@ -57,7 +57,7 @@ type OptionsPlayground struct {
 }
 
 type WatchmanOptions struct {
-	SourceCodeRun  string   `json:"source_run"`
+	SourceCodeRun  string   `json:"source_run,omitempty"`
 	Project        string   `json:"project,omitempty"`
 	SourceCodeTest string   `json:"source_test,omitempty"`
 	ContainerType  string   `json:"container_type"`
@@ -350,8 +350,15 @@ type ChapterContent struct {
 type UserProgress struct {
 	StatusOnChapter string `json:"user_status_on_chapter"`
 
-	NotCompletedTaskIds []string `json:"not_completed_tasks,omitempty"`
-	NextChapterId       string   `json:"next_chapter_id,omitempty"`
-	IsCourseCompleted   bool     `json:"is_course_completed,omitempty"`
-	CourseId            string   `json:"course_id,omitempty"`
+	NotCompletedTaskIds []string          `json:"not_completed_tasks,omitempty"`
+	NextChapterId       string            `json:"next_chapter_id,omitempty"`
+	IsCourseCompleted   bool              `json:"is_course_completed,omitempty"`
+	CourseId            string            `json:"course_id,omitempty"`
+	PracticeProjects    []PracticeProject `json:"practice_projects,omitempty"`
+}
+
+type PracticeProject struct {
+	Title     string `json:"title"`
+	ProjectId string `json:"project_id"`
+	Status    string `json:"status"`
 }

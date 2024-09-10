@@ -138,6 +138,7 @@ def import_tasks(courses_dir: str, course_ids: List, conn) -> None:
 
 def import_practice_for_course(practice_dir: str, course_id: str, conn) -> None:
     if not os.path.exists(practice_dir):
+        logging.error(f"Directory for practice {practice_dir} for course {course_id} doesn't exist")
         return
 
     for project_id in os.listdir(practice_dir):
