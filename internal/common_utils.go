@@ -57,7 +57,7 @@ type OptionsPlayground struct {
 }
 
 type WatchmanOptions struct {
-	SourceCodeRun  string   `json:"source_run,omitempty"`
+	SourceCodeRun  string   `json:"source_run"`
 	Project        string   `json:"project,omitempty"`
 	SourceCodeTest string   `json:"source_test,omitempty"`
 	ContainerType  string   `json:"container_type"`
