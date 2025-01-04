@@ -343,9 +343,10 @@ type TaskForUser struct {
 
 type ChapterContent struct {
 	ChapterForUser
-	Content  string        `json:"content"`
-	Tasks    []TaskForUser `json:"tasks"`
-	Keywords string        `json:"keywords,omitempty"`
+	Content    string        `json:"content"`
+	Tasks      []TaskForUser `json:"tasks"`
+	Keywords   string        `json:"keywords,omitempty"`
+	IsPractice bool          `json:"is_practice"`
 }
 
 type UserProgress struct {

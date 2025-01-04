@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"net/http"
 	"path/filepath"
+	"strconv"
 
 	"github.com/gammazero/workerpool"
 	_ "github.com/lib/pq"
@@ -2612,27 +2613,43 @@ func HandleGetActiveChapter(w http.ResponseWriter, r *http.Request) {
 		if chapters[i].Status == "in_progress" || chapters[i].Status == "not_started" {
 			opts.ChapterId = chapters[i].ChapterId
 
-			chapter, err := GetChapterForUser(opts)
+			var chapter ChapterContent
+			chapter.IsPractice = false
 
-			if err != nil {
-				body, _ := json.Marshal(map[string]string{
-					"error": fmt.Sprintf("Couldn't get chapter for user: %s", err),
-				})
-				w.Write(body)
+			prefixLen := len(opts.ChapterId) - 4 // NNNN
+			if prefixLen < len(opts.ChapterId) {
+				_, err := strconv.Atoi(opts.ChapterId[prefixLen:])
+				// Chapter is practice: it is not in format coursename_NNNN
+				if err != nil {
+					chapter.ChapterId = opts.ChapterId
+					chapter.IsPractice = true
+				}
+			}
 
-				Logger.WithFields(log.Fields{
-					"user_id":    opts.userId,
-					"course_id":  opts.CourseId,
-					"chapter_id": opts.ChapterId,
-					"error":      err.Error(),
-				}).Error("/get_active_chapter: couldn't get chapter for user")
-				return
+			if !chapter.IsPractice {
+				chapter, err = GetChapterForUser(opts)
+				if err != nil {
+					body, _ := json.Marshal(map[string]string{
+						"error": fmt.Sprintf("Couldn't get chapter for user: %s", err),
+					})
+					w.Write(body)
+
+					Logger.WithFields(log.Fields{
+						"user_id":    opts.userId,
+						"course_id":  opts.CourseId,
+						"chapter_id": opts.ChapterId,
+						"error":      err.Error(),
+					}).Error("/get_active_chapter: couldn't get chapter for user")
+					return
+				}
 			}
 
 			Logger.WithFields(log.Fields{
-				"user_id":    opts.userId,
-				"course_id":  opts.CourseId,
-				"chapter_id": opts.ChapterId,
+				"user_id":             opts.userId,
+				"course_id":           opts.CourseId,
+				"chapter_id":          opts.ChapterId,
+				"returned_chapter_id": chapter.ChapterId,
+				"is_practice":         chapter.IsPractice,
 			}).Info("/get_active_chapter: completed")
 
 			json.NewEncoder(w).Encode(chapter)
