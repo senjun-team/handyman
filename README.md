@@ -51,6 +51,13 @@ curl -X POST \
   "http://localhost:8080/run_task?user_id=100"
 ```
 
+`/save_task` - сохранение решения пользователя для задачи курса. Решение пользователя закодировано в base64. Выполняется на фронтенде сайта раз в какое-то время, если пользователь редактировал текст. Это нужно, чтобы при уходе со страницы, при перезагрузке страницы, при закрытии браузера, отвале интернета и других неприятностях у пользователя не терялось его решение.
+```bash
+curl -X POST \
+  -d '{"task_id":"python_chapter_0010_task_0010", "solution_text":"ZXJyX3NlcnZpY2VfdW5hdmFpbGFibGUgPSA1MDM="}' \
+  "http://localhost:8080/save_task?user_id=1"
+```
+
 ```bash
 curl -X POST \
   -d '{"task_id":"cpp_chapter_0020_task_0020", "solution_text":"IHRydWUgIA==", "task_type":"plain_text"}' \

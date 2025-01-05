@@ -396,6 +396,70 @@ func HandleRunTask(w http.ResponseWriter, r *http.Request) {
 	json.NewEncoder(w).Encode(res)
 }
 
+func HandleSaveTask(w http.ResponseWriter, r *http.Request) {
+	w.WriteHeader(http.StatusOK)
+	w.Header().Set("Content-type", "application/json")
+
+	opts, err := extractOptionsRunTask(r)
+	if err != nil {
+		body, _ := json.Marshal(map[string]string{
+			"error": fmt.Sprintf("Invalid request: %s", err),
+		})
+		w.Write(body)
+
+		Logger.WithFields(log.Fields{
+			"user_id": opts.userId,
+			"task_id": opts.TaskId,
+			"error":   err.Error(),
+		}).Warning("/save_task: couldn't parse request")
+
+		return
+	}
+
+	if len(opts.TaskType) == 0 {
+		opts.TaskType = "code"
+	}
+
+	Logger.WithFields(log.Fields{
+		"user_id": opts.userId,
+		"task_id": opts.TaskId,
+	}).Info("/save_task: parsed options")
+
+	if len(opts.userId) == 0 {
+		json.NewEncoder(w).Encode(map[string]string{
+			"error": "Couldn't get user_id",
+		})
+
+		Logger.WithFields(log.Fields{
+			"user_id": opts.userId,
+			"task_id": opts.TaskId,
+		}).Warning("/save_task: couldn't get user_id")
+		return
+	}
+
+	// Replaces strange symbols (no-break space, ... for iOS users, etc)
+	// https://github.com/senjun-team/senjun-courses/issues/31
+	normalizeCode(&opts)
+
+	if !SaveTask(opts.userId, opts.TaskId, opts.ChapterId, opts.CourseId, opts.SourceCodeOriginal) {
+		Logger.WithFields(log.Fields{
+			"user_id": opts.userId,
+			"task_id": opts.TaskId,
+		}).Error("/save_task: couldn't save to DB")
+	}
+
+	Logger.WithFields(log.Fields{
+		"user_id": opts.userId,
+		"task_id": opts.TaskId,
+	}).Info("/save_task: completed")
+
+	body, _ := json.Marshal(map[string]int{
+		"status_code": 0,
+	})
+
+	w.Write(body)
+}
+
 func HandleRunCode(w http.ResponseWriter, r *http.Request) {
 	countRunCodeTotal.Inc()
 

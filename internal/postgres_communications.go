@@ -281,6 +281,33 @@ SELECT user_code FROM playgrounds where playground_id=$1
 	return userCode, err
 }
 
+func SaveTask(userId string, taskId string, chapterId string, courseId string, solutionText string) bool {
+	const taskStatus = "in_progress"
+	const attemptsCount = 0
+
+	query := `
+		INSERT INTO 
+		task_progress(user_id, task_id, status, solution_text, attempts_count)
+		VALUES($1, $2, $3, $4, $5)
+		ON CONFLICT ON CONSTRAINT unique_user_task_id
+		DO UPDATE SET 
+		status = task_progress.status, 
+		solution_text = EXCLUDED.solution_text,
+		attempts_count = task_progress.attempts_count
+	`
+	_, err := DB.Exec(query, userId, taskId, taskStatus, solutionText, attemptsCount)
+	if err != nil {
+		Logger.WithFields(log.Fields{
+			"user_id": userId,
+			"task_id": taskId,
+			"error":   err.Error(),
+		}).Error("/save_task update task in DB: couldn't update task solution for user")
+		return false
+	}
+
+	return true
+}
+
 func UpdateStatus(userId string, taskId string, chapterId string, courseId string, isSolved bool, solutionText string) bool {
 	taskStatus := getEduMaterialStatus(isSolved)
 	const attemptsCount = 1
