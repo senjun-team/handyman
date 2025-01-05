@@ -446,6 +446,12 @@ func HandleSaveTask(w http.ResponseWriter, r *http.Request) {
 			"user_id": opts.userId,
 			"task_id": opts.TaskId,
 		}).Error("/save_task: couldn't save to DB")
+
+		body, _ := json.Marshal(map[string]int{
+			"status_code": 1,
+		})
+
+		w.Write(body)
 	}
 
 	Logger.WithFields(log.Fields{
