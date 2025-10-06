@@ -8,6 +8,7 @@ import (
 	"net/http"
 	"path/filepath"
 	"strconv"
+	"strings"
 
 	"github.com/gammazero/workerpool"
 	_ "github.com/lib/pq"
@@ -696,6 +697,18 @@ func GetFirstChapterId(courseId string) (string, error) {
 	row := DB.QueryRow(query, courseId)
 	err := row.Scan(&firstChapterId)
 	return firstChapterId, err
+}
+
+func GetChapterTitle(chapterId string) (string, error) {
+	query := `
+		SELECT title FROM chapters WHERE chapter_id = $1 LIMIT 1
+	`
+	var title string
+
+	row := DB.QueryRow(query, chapterId)
+	err := row.Scan(&title)
+
+	return title, err
 }
 
 func GetNextChapterId(courseId string, chapterId string, getPractice bool) (string, error) {
@@ -2204,6 +2217,11 @@ func HandleGetChapter(w http.ResponseWriter, r *http.Request) {
 		chapter.CourseStatus = "not_started"
 	} else {
 		chapter.CourseStatus, _ = GetCourseProgressForUser(opts.CourseId, opts.userId)
+	}
+
+	if !strings.HasSuffix(chapter.ChapterId, "0") { // subchapter
+		chapter.ParentChapterId = chapter.ChapterId[:len(chapter.ChapterId)-1] + string('0')
+		chapter.ParentChapterTitle, _ = GetChapterTitle(chapter.ParentChapterId)
 	}
 
 	countGetChapterOk.Inc()
