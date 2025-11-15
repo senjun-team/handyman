@@ -913,12 +913,24 @@ func UpdateCourseProgressForUser(courseId string, status string, userId string) 
 
 func GetCourseStatuses(userId string) []CourseStatus {
 	query := `
-	SELECT course_id, 
-	(SELECT title from courses where courses.course_id = course_progress.course_id) as title, 
+	SELECT course_id as course_id, 
+	(SELECT title from courses where courses.course_id = course_progress.course_id) as title,
+
 	(SELECT count(*) from chapters where chapters.course_id = course_progress.course_id) as chapters_total,
 	(SELECT count(*) from chapter_progress where chapter_progress.user_id = $1 and 
 	chapter_progress.status = 'completed' 
 	and chapter_progress.chapter_id like concat(course_id, '_chapter_%')) as chapters_completed,
+
+	(SELECT count(*) from tasks where tasks.task_id like concat(course_id, '_chapter_%')) as tasks_total,
+	(SELECT count(*) from task_progress where task_progress.user_id = $1 and 
+	task_progress.status = 'completed' 
+	and task_progress.task_id like concat(course_id, '_chapter_%')) as tasks_completed,
+
+	(SELECT count(*) from practice where practice.course_id = course_progress.course_id) as projects_total,
+	(SELECT count(*) from practice_progress where practice_progress.user_id = $1 and 
+	practice_progress.status = 'completed' 
+	and practice_progress.project_id like concat(course_id, '_%')) as projects_completed,
+
 	status FROM course_progress
 	WHERE user_id = $1 and status in ('in_progress', 'completed')
 	`
@@ -940,7 +952,11 @@ func GetCourseStatuses(userId string) []CourseStatus {
 	for rows.Next() {
 		var cs CourseStatus
 
-		if err := rows.Scan(&cs.CourseId, &cs.Title, &cs.TotalChapters, &cs.FinishedChapters, &cs.Status); err != nil {
+		if err := rows.Scan(&cs.CourseId, &cs.Title,
+			&cs.TotalChapters, &cs.FinishedChapters,
+			&cs.TotalTasks, &cs.FinishedTasks,
+			&cs.TotalProjects, &cs.FinishedProjects,
+			&cs.Status); err != nil {
 			Logger.WithFields(log.Fields{
 				"user_id": userId,
 				"error":   err.Error(),

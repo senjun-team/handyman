@@ -322,6 +322,10 @@ type CourseStatus struct {
 	Title            string `json:"title"`
 	TotalChapters    int    `json:"total_chapters"`
 	FinishedChapters int    `json:"finished_chapters"`
+	TotalTasks       int    `json:"total_tasks"`
+	FinishedTasks    int    `json:"finished_tasks"`
+	TotalProjects    int    `json:"total_projects"`
+	FinishedProjects int    `json:"finished_projects"`
 	Status           string `json:"status,omitempty"`
 }
 
