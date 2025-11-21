@@ -2104,7 +2104,7 @@ func HandleGetPractice(w http.ResponseWriter, r *http.Request) {
 
 	practice.NextChapterId, _ = GetNextChapterId(opts.CourseId, practice.ChapterId, false)
 
-	pathToText := filepath.Join(rootCourses, opts.CourseId, "practice", opts.TaskId, "text.md")
+	pathToText := filepath.Join(RootCourses, opts.CourseId, "practice", opts.TaskId, "text.md")
 	practice.ProjectDescription, err = ReadTextFile(pathToText)
 
 	if err != nil {
@@ -2122,7 +2122,7 @@ func HandleGetPractice(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	pathToHint := filepath.Join(rootCourses, opts.CourseId, "practice", opts.TaskId, "hint.md")
+	pathToHint := filepath.Join(RootCourses, opts.CourseId, "practice", opts.TaskId, "hint.md")
 	practice.ProjectHint, err = ReadTextFile(pathToHint)
 
 	if err != nil {
@@ -2140,7 +2140,7 @@ func HandleGetPractice(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	practice.ProjectPath = filepath.Join(rootCourses, opts.CourseId, "practice", opts.TaskId, "project")
+	practice.ProjectPath = filepath.Join(RootCourses, opts.CourseId, "practice", opts.TaskId, "project")
 
 	practice.Tags, err = GetCourseInfo(opts.CourseId)
 	if err != nil {

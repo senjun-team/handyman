@@ -1,49 +1,66 @@
 # Handyman
-Сервис на бэке: выдача и обновление прогресса по курсам, отправка задач в watchman.
-Реализован на  go 1.18.4.
+
+Сервис для выдачи и обновления прогресса по курсам, отправки задач в watchman.
+
 
 ## Сборка и запуск
-Забрать проект к себе:
+
+1. Забрать проект к себе:
 ```bash
 git clone https://gitlab.com/senjun/handyman.git
 cd handyman
 ```
 
-Собрать и запустить сервис в дебаг-сборке:
+2. Определить, в какой директории будут лежать [курсы.](https://github.com/senjun-team/senjun-courses/tree/main) Она должна называться `courses`. Например, `/home/code_runner/courses`.
+
+
+3. Поднять PostgreSQL в докере.  Чтобы начать работать с handyman, можно запустить контейнер  с постгресом:
+
 ```bash
-cd cmd/handyman
-go run .
+docker run  -e POSTGRES_PASSWORD=senjun_pass -p 5432:5432 -v postgres-senjun-data:/var/lib/postgresql/data -d postgres
 ```
 
-Собрать и запустить сервис в релизной сборке:
+4. Зайти в контейнер:
+
+```bash
+docker ps
+516cd7b6f4d3   postgres     "docker-entrypoint.s…"  ...
+
+docker exec -it 516cd7b6f4d3 bash
+psql -U postgres
+```
+
+5. Применить миграции бд из `etc/postgres_migrations`.
+
+6. Заполнить таблички постгреса данными из курсов. Вам нужен скрипт `import_courses.py` из `etc/scripts`. 
+
+Настройка его окружения:
+
+```bash
+cd etc/scripts
+python3 -m venv .venv
+source .venv/bin/activate
+pip3 install -r requirements.txt
+```
+
+```bash
+python3 import_courses.py --courses_dir=/home/code_runner/courses --postgres_conn=postgresql://senjun:some_password@127.0.0.1:5432/senjun
+```
+
+7. Собрать и запустить сервис в дебаг-сборке с указанием пути к курсам:
 ```bash
 cd cmd/handyman
+go run . /home/code_runner/courses
+```
+
+Либо собрать и запустить сервис в релизной сборке:
+```bash
 go build .
-./handyman
-```
-
-Настроить симлинк на директорию с курсами:
-```bash
-cd /
-sudo mkdir data
-sudo ln -s /home/your_user/senjun/courses/courses/ /data
-```
-
-Для разработки можно использовать такие IDE как VSCode, LiteIDE и другие.
-Иерархия директорий проекта соответствует [распространенным практикам go.](https://github.com/golang-standards/project-layout)
-
-## Добавление модулей
-Чтобы добавить сторонний модуль в go-проект, достаточно сначала импортировать его в нужном месте в коде, например:
-```go
-import "github.com/gorilla/mux"
-```
-
-А затем выполнить команду, которая обновит файл с зависимостями `go.mod`:
-```bash
-go mod tidy
+./handyman /home/code_runner/courses
 ```
 
 ## Апишки
+
 `/run_task` - запуск решения пользователя для задачи курса. Решение пользователя закодировано в base64.
 ```bash
 curl -X POST \
@@ -152,23 +169,20 @@ curl -X POST   -d '{"cur_user_id": 456, "old_user_id": 982, "new_user_id": 0}'  
 curl -X POST   -d '{"cur_user_id": 456, "old_user_id": 0, "new_user_id": 982}'   "http://localhost:8080/split_users"
 ```
 
+## Добавление модулей
 
-## Настройка PostgreSQL в докере для отладки
-Чтобы начать работать с handyman, можно запустить контейнер  с постгресом:
-```bash
-docker run  -e POSTGRES_PASSWORD=senjun_pass -p 5432:5432 -v postgres-senjun-data:/var/lib/postgresql/data -d postgres
+Чтобы добавить сторонний модуль в go-проект, достаточно сначала импортировать его в нужном месте в коде, например:
+```go
+import "github.com/gorilla/mux"
 ```
 
-Зайти в него, применить миграции из `etc/postgres_migrations`:
+А затем выполнить команду, которая обновит файл с зависимостями `go.mod`:
 ```bash
-docker ps
-516cd7b6f4d3   postgres     "docker-entrypoint.s…"  ...
-
-docker exec -it 516cd7b6f4d3 bash
-psql -U postgres
+go mod tidy
 ```
 
 ## Полезные SQL-запросы для отладки и разворачивания базы
+
 ```sql
 -- db size with indices
 SELECT pg_size_pretty(pg_database_size('senjun'));

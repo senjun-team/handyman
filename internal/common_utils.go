@@ -11,6 +11,11 @@ import (
 	log "github.com/sirupsen/logrus"
 )
 
+var RootCourses string = "/data/courses/"
+
+const injectMarker = "#INJECT-b585472fa"
+const injectEscapedMarker = "#INJECT-ESCAPED-b585472fa"
+
 type OptionsTg struct {
 	UserIdCur int `json:"cur_user_id"`
 	UserIdOld int `json:"old_user_id"`
@@ -166,15 +171,11 @@ func GetUserId(r *http.Request) string {
 	return urlParams.Get("user_id")
 }
 
-const rootCourses = "/data/courses/"
-const injectMarker = "#INJECT-b585472fa"
-const injectEscapedMarker = "#INJECT-ESCAPED-b585472fa"
-
 func GetPathToWrapper(opts *Options, filename string) string {
-	pathRun := filepath.Join(rootCourses, opts.CourseId, opts.ChapterId, "tasks", opts.TaskId, filename)
+	pathRun := filepath.Join(RootCourses, opts.CourseId, opts.ChapterId, "tasks", opts.TaskId, filename)
 
 	if len(opts.ExampleId) > 0 {
-		pathRun = filepath.Join(rootCourses, opts.CourseId, opts.ChapterId, "examples", opts.ExampleId, filename)
+		pathRun = filepath.Join(RootCourses, opts.CourseId, opts.ChapterId, "examples", opts.ExampleId, filename)
 	}
 
 	_, err := os.Stat(pathRun)
@@ -183,12 +184,12 @@ func GetPathToWrapper(opts *Options, filename string) string {
 		return pathRun
 	}
 
-	return filepath.Join(rootCourses, opts.CourseId, filename+"_fallback")
+	return filepath.Join(RootCourses, opts.CourseId, filename+"_fallback")
 }
 
 func GetPathToChapterText(courseId string, chapterId string) (string, string) {
-	return filepath.Join(rootCourses, courseId, chapterId, "text.md"),
-		filepath.Join(rootCourses, courseId, chapterId, "keywords.md")
+	return filepath.Join(RootCourses, courseId, chapterId, "text.md"),
+		filepath.Join(RootCourses, courseId, chapterId, "keywords.md")
 }
 
 func ReadTextFile(path string) (string, error) {

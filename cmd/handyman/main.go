@@ -37,6 +37,17 @@ func main() {
 		"GOMAXPROCS": runtime.GOMAXPROCS(-1),
 	}).Info("Started handyman")
 
+	if len(os.Args) > 1 {
+		internal.Logger.WithFields(log.Fields{
+			"path": os.Args[1],
+		}).Info("Setting courses path from 1st agrument")
+		internal.RootCourses = os.Args[1]
+	} else {
+		internal.Logger.WithFields(log.Fields{
+			"default_path": internal.RootCourses,
+		}).Info("Using default path to courses. You can redefine it by passing as 1st argument")
+	}
+
 	internal.DB = internal.ConnectDb()
 	defer internal.DB.Close()
 	internal.Logger.Info("DB is online, checked connection")
