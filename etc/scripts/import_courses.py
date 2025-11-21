@@ -27,10 +27,15 @@ def import_courses(courses_dir: str, conn) -> List:
 
     for course_id in os.listdir(courses_dir):
         path = os.path.join(courses_dir, course_id)
-        course_type = "free"
 
-        with open(os.path.join(path, "tags.json")) as file_tags:
-            tags = file_tags.read()
+        course_type = "free"
+        try:
+
+            with open(os.path.join(path, "tags.json")) as file_tags:
+                tags = file_tags.read()
+        except Exception as e:
+            logging.warning(f"Couldn't read tags in dir {path}")
+            continue
 
         title = json.loads(tags).get("title", course_id.capitalize())
         course_data = (course_id, path, title, course_type, tags)
