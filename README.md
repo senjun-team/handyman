@@ -11,7 +11,7 @@ git clone https://gitlab.com/senjun/handyman.git
 cd handyman
 ```
 
-2. Определить, в какой директории будут лежать [курсы.](https://github.com/senjun-team/senjun-courses/tree/main) Она должна называться `courses`. Например, `/home/code_runner/courses`.
+2. Определить, в какой директории будут лежать [курсы.](https://github.com/senjun-team/senjun-courses/tree/main) Например, `/home/code_runner/courses`.
 
 
 3. Поднять PostgreSQL в докере.  Чтобы начать работать с handyman, можно запустить контейнер  с постгресом:
