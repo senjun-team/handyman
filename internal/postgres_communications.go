@@ -951,7 +951,7 @@ func GetCourseStatus(userId string, courseId string) []CourseStatus {
 		Logger.WithFields(log.Fields{
 			"user_id": userId,
 			"error":   err.Error(),
-		}).Warning("Couldn't get course statuses")
+		}).Warning("Couldn't get course status")
 
 		return []CourseStatus{}
 	}
@@ -971,7 +971,7 @@ func GetCourseStatus(userId string, courseId string) []CourseStatus {
 			Logger.WithFields(log.Fields{
 				"user_id": userId,
 				"error":   err.Error(),
-			}).Error("Couldn't parse row from courses selection for user")
+			}).Error("Couldn't parse row from course selection for user")
 			return []CourseStatus{}
 		}
 

@@ -20,13 +20,6 @@ cd handyman
 docker run  -e POSTGRES_PASSWORD=senjun_pass -p 5432:5432 -v postgres-senjun-data:/var/lib/postgresql/data -d postgres
 ```
 
-    docker run -d \
-      --name sp \
-      -e POSTGRES_PASSWORD=senjun_pass \
-      -v postgres-senjun-data:/var/lib/postgresql/data \
-      -p 5432:5432 \
-      postgres
-
 4. Зайти в контейнер:
 
 ```bash
