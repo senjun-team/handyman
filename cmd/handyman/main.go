@@ -64,6 +64,8 @@ func main() {
 	internal.WP = workerpool.New(12)
 	internal.Logger.Info("Created worker pool for DB deferred queries")
 
+	internal.BindWatchman(watchmanConnStr)
+
 	r := mux.NewRouter()
 	r.HandleFunc("/get_courses", internal.HandleGetCourses)
 
@@ -95,7 +97,7 @@ func main() {
 	r.HandleFunc("/get_practice", internal.HandleGetPractice)
 
 	// Run, test or save practice project
-	r.HandleFunc("/handle_practice_code", internal.CreateHandlePracticeCode(watchmanConnStr))
+	r.HandleFunc("/handle_practice_code", internal.HandlePracticeCode)
 
 	srv := &http.Server{
 		Handler:      r,

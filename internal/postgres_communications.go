@@ -1885,8 +1885,7 @@ func HandleGetCourseInfo(w http.ResponseWriter, r *http.Request) {
 	w.Write(body)
 }
 
-func CreateHandlePracticeCode(watchmanConnStr string) func(http.ResponseWriter, *http.Request) {
-	return func(w http.ResponseWriter, r *http.Request) {
+func HandlePracticeCode(w http.ResponseWriter, r *http.Request) {
 	countRunPracticeTotal.Inc()
 
 	w.WriteHeader(http.StatusOK)
@@ -1978,7 +1977,7 @@ func CreateHandlePracticeCode(watchmanConnStr string) func(http.ResponseWriter, 
 			return
 		}
 
-		bodyResp, err := sendRequestToWatchman(watchmanConnStr, &bodyReq)
+		bodyResp, err := sendRequestToWatchman(addrWatchmanPractice, &bodyReq)
 
 		if err != nil {
 			countRunPracticeErrServer.Inc()
@@ -2033,7 +2032,6 @@ func CreateHandlePracticeCode(watchmanConnStr string) func(http.ResponseWriter, 
 	}).Info("/handle_practice_code: completed")
 
 	json.NewEncoder(w).Encode(res)
-}
 }
 
 func HandleGetPractice(w http.ResponseWriter, r *http.Request) {
