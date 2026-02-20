@@ -24,11 +24,11 @@ COPY --from=builder /build/handyman /app/
 
 # Copy courses directory (will be mounted as volume in docker-compose)
 # This is just to ensure the directory exists
-RUN mkdir -p /app/courses
+RUN mkdir -p /courses
 
 EXPOSE 8080
 
 # Run handyman with courses path
-CMD ["./handyman", "/app/courses"]
+CMD ["./handyman", "/courses"]
 
 
