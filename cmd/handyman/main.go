@@ -67,9 +67,11 @@ func main() {
 	r.HandleFunc("/get_practice", internal.HandleGetPractice)
 	r.HandleFunc("/get_course_info", internal.HandleGetCourseInfo)
 	r.HandleFunc("/get_chapters", internal.HandleGetChapters)
+	r.HandleFunc("/get_course_description", internal.HandleGetCourseDescription)
 
 	r.HandleFunc("/get_active_chapter", internal.HandleGetActiveChapter)
 	r.HandleFunc("/courses_stats", internal.HandleCoursesStats)
+	r.HandleFunc("/course_stats", internal.HandleCourseStats)
 	r.HandleFunc("/get_task", internal.HandleGetTask)
 
 	// APIs for syncing telegram bot account and site account:

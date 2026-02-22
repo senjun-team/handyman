@@ -512,6 +512,17 @@ func GetCourseInfo(courseId string) (string, error) {
 	return tags, err
 }
 
+func GetCoursePathOnDisk(courseId string) (string, error) {
+	query := `
+		SELECT path_on_disk FROM courses where course_id=$1
+	`
+
+	var path_on_disk string
+	row := DB.QueryRow(query, courseId)
+	err := row.Scan(&path_on_disk)
+	return path_on_disk, err
+}
+
 func GetCoursesForUser(userId string) []CourseForUser {
 	query := `
 		SELECT courses.course_id, courses.path_on_disk, courses.type, courses.title, courses.tags,
@@ -909,6 +920,65 @@ func UpdateCourseProgressForUser(courseId string, status string, userId string) 
 	}
 
 	return nil
+}
+
+func GetCourseStatus(userId string, courseId string) []CourseStatus {
+	query := `
+	SELECT course_id as course_id, 
+	(SELECT title from courses where courses.course_id = course_progress.course_id) as title,
+
+	(SELECT count(*) from chapters where chapters.course_id = course_progress.course_id) as chapters_total,
+	(SELECT count(*) from chapter_progress where chapter_progress.user_id = $1 and 
+	chapter_progress.status = 'completed' 
+	and chapter_progress.chapter_id like concat(course_id, '_chapter_%')) as chapters_completed,
+
+	(SELECT count(*) from tasks where tasks.task_id like concat(course_id, '_chapter_%')) as tasks_total,
+	(SELECT count(*) from task_progress where task_progress.user_id = $1 and 
+	task_progress.status = 'completed' 
+	and task_progress.task_id like concat(course_id, '_chapter_%')) as tasks_completed,
+
+	(SELECT count(*) from practice where practice.course_id = course_progress.course_id) as projects_total,
+	(SELECT count(*) from practice_progress where practice_progress.user_id = $1 and 
+	practice_progress.status = 'completed' 
+	and practice_progress.project_id like concat(course_id, '_%')) as projects_completed,
+
+	status FROM course_progress
+	WHERE user_id = $1 and status in ('in_progress', 'completed') and course_id = $2
+	`
+
+	rows, err := DB.Query(query, userId, courseId)
+	if err != nil {
+		Logger.WithFields(log.Fields{
+			"user_id": userId,
+			"error":   err.Error(),
+		}).Warning("Couldn't get course status")
+
+		return []CourseStatus{}
+	}
+
+	defer rows.Close()
+
+	courseStatuses := []CourseStatus{}
+
+	for rows.Next() {
+		var cs CourseStatus
+
+		if err := rows.Scan(&cs.CourseId, &cs.Title,
+			&cs.TotalChapters, &cs.FinishedChapters,
+			&cs.TotalTasks, &cs.FinishedTasks,
+			&cs.TotalProjects, &cs.FinishedProjects,
+			&cs.Status); err != nil {
+			Logger.WithFields(log.Fields{
+				"user_id": userId,
+				"error":   err.Error(),
+			}).Error("Couldn't parse row from course selection for user")
+			return []CourseStatus{}
+		}
+
+		courseStatuses = append(courseStatuses, cs)
+	}
+
+	return courseStatuses
 }
 
 func GetCourseStatuses(userId string) []CourseStatus {
@@ -1785,6 +1855,64 @@ func HandleUpdateChapterProgress(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
+func HandleGetCourseDescription(w http.ResponseWriter, r *http.Request) {
+	w.WriteHeader(http.StatusOK)
+	w.Header().Set("Content-type", "application/json")
+
+	opts, err := ParseOptions(r)
+	if err != nil {
+		body, _ := json.Marshal(map[string]string{
+			"error": fmt.Sprintf("Invalid request: %s", err),
+		})
+		w.Write(body)
+
+		Logger.WithFields(log.Fields{
+			"user_id":   opts.userId,
+			"course_id": opts.CourseId,
+			"error":     err.Error(),
+		}).Warning("/get_course_description: couldn't parse request")
+		return
+	}
+
+	if len(opts.CourseId) == 0 {
+		json.NewEncoder(w).Encode(map[string]string{
+			"error": "Couldn't get course_id in get_course_description",
+		})
+
+		Logger.WithFields(log.Fields{
+			"user_id":   opts.userId,
+			"course_id": opts.CourseId,
+		}).Warning("/get_course_description: required fields not set in request")
+		return
+	}
+	path, err := GetCoursePathOnDisk(opts.CourseId)
+	if err != nil {
+		body, _ := json.Marshal(map[string]string{
+			"error": fmt.Sprintf("Invalid request: %s", err),
+		})
+		w.Write(body)
+
+		Logger.WithFields(log.Fields{
+			"user_id":   opts.userId,
+			"course_id": opts.CourseId,
+			"error":     err.Error(),
+		}).Warning("/get_course_description: couldn't get path to description")
+		return
+	}
+
+	descr, _ := ReadTextFile(filepath.Join(path, "description.md"))
+
+	Logger.WithFields(log.Fields{
+		"user_id":   opts.userId,
+		"course_id": opts.CourseId,
+	}).Info("/get_course_description: completed")
+
+	body, _ := json.Marshal(map[string]string{
+		"description": descr,
+	})
+	w.Write(body)
+}
+
 func HandleGetChapters(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusOK)
 	w.Header().Set("Content-type", "application/json")
@@ -2403,6 +2531,45 @@ func HandleCoursesStats(w http.ResponseWriter, r *http.Request) {
 	}).Info("/courses_stats: completed")
 
 	json.NewEncoder(w).Encode(courseStatuses)
+}
+
+func HandleCourseStats(w http.ResponseWriter, r *http.Request) {
+	w.WriteHeader(http.StatusOK)
+	w.Header().Set("Content-type", "application/json")
+
+	opts, err := ParseOptions(r)
+	if err != nil {
+		body, _ := json.Marshal(map[string]string{
+			"error": fmt.Sprintf("Invalid request: %s", err),
+		})
+		w.Write(body)
+
+		Logger.WithFields(log.Fields{
+			"user_id": opts.userId,
+			"error":   err.Error(),
+		}).Warning("/course_stats: couldn't parse request")
+		return
+	}
+
+	if len(opts.userId) == 0 || len(opts.CourseId) == 0 {
+		json.NewEncoder(w).Encode(map[string]string{
+			"error": "Couldn't get user_id or course_id",
+		})
+
+		Logger.WithFields(log.Fields{
+			"user_id":   opts.userId,
+			"course_id": opts.CourseId,
+		}).Warning("/course_stats: required fields not set in request")
+		return
+	}
+
+	courseStatus := GetCourseStatus(opts.userId, opts.CourseId)
+
+	Logger.WithFields(log.Fields{
+		"user_id": opts.userId,
+	}).Info("/course_stats: completed")
+
+	json.NewEncoder(w).Encode(courseStatus)
 }
 
 func HandleMergeUsers(w http.ResponseWriter, r *http.Request) {
