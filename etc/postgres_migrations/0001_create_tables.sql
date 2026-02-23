@@ -2,9 +2,8 @@
 -- docker run --name postgresql -e POSTGRES_USER=postgres -e POSTGRES_PASSWORD=postgres -p 5432:5432 -v /data:/var/lib/postgresql/data -d postgres
 
 -- Databases, roles, enums, etc
--- already done if used with container
--- CREATE USER senjun WITH PASSWORD 'some_password';
--- CREATE DATABASE senjun OWNER senjun;
+CREATE USER senjun WITH PASSWORD 'some_password';
+CREATE DATABASE senjun OWNER senjun;
 
 -- To connect to the created db:
 -- \c senjun
@@ -83,7 +82,7 @@ CREATE TABLE course_progress (
     status edu_material_status NOT NULL,
     CONSTRAINT fk_course_id FOREIGN KEY(course_id) REFERENCES courses(course_id)
 );
-CREATE UNIQUE INDEX unique_user_course_id ON course_progress(user_id, course_id);
+CREATE UNIQUE INDEX CONCURRENTLY unique_user_course_id ON course_progress(user_id, course_id);
 ALTER TABLE course_progress ADD CONSTRAINT unique_user_course_id UNIQUE USING INDEX unique_user_course_id;
 ALTER TABLE course_progress OWNER TO senjun;
 
@@ -93,7 +92,7 @@ CREATE TABLE chapter_progress (
     status edu_material_status NOT NULL,
     CONSTRAINT fk_chapter_id FOREIGN KEY(chapter_id) REFERENCES chapters(chapter_id)
 );
-CREATE UNIQUE INDEX unique_user_chapter_id ON chapter_progress(user_id, chapter_id);
+CREATE UNIQUE INDEX CONCURRENTLY unique_user_chapter_id ON chapter_progress(user_id, chapter_id);
 ALTER TABLE chapter_progress ADD CONSTRAINT unique_user_chapter_id UNIQUE USING INDEX unique_user_chapter_id;
 ALTER TABLE chapter_progress OWNER TO senjun;
 
@@ -105,7 +104,7 @@ CREATE TABLE task_progress (
     attempts_count smallint DEFAULT 0 NOT NULL,
     CONSTRAINT fk_task_id FOREIGN KEY(task_id) REFERENCES tasks(task_id)
 );
-CREATE UNIQUE INDEX unique_user_task_id ON task_progress(user_id, task_id);
+CREATE UNIQUE INDEX CONCURRENTLY unique_user_task_id ON task_progress(user_id, task_id);
 ALTER TABLE task_progress ADD CONSTRAINT unique_user_task_id UNIQUE USING INDEX unique_user_task_id;
 ALTER TABLE task_progress OWNER TO senjun;
 
@@ -115,7 +114,7 @@ CREATE TABLE user_interactions (
     interaction_val varchar NOT NULL,
     day date NOT NULL DEFAULT CURRENT_DATE
 );
-CREATE UNIQUE INDEX unique_user_key_id ON user_interactions(user_id, interaction_key);
+CREATE UNIQUE INDEX CONCURRENTLY unique_user_key_id ON user_interactions(user_id, interaction_key);
 ALTER TABLE user_interactions ADD CONSTRAINT unique_user_key_id UNIQUE USING INDEX unique_user_key_id;
 ALTER TABLE user_interactions ADD UNIQUE (user_id, interaction_key);
 ALTER TABLE user_interactions OWNER TO senjun;
@@ -129,7 +128,7 @@ CREATE TABLE playgrounds (
     dt_last_request TIMESTAMPTZ NOT NULL DEFAULT Now(),
     user_code text
 );
-CREATE UNIQUE INDEX unique_playground_id ON playgrounds(playground_id);
+CREATE UNIQUE INDEX CONCURRENTLY unique_playground_id ON playgrounds(playground_id);
 ALTER TABLE playgrounds ADD CONSTRAINT unique_playground_id UNIQUE USING INDEX unique_playground_id;
 ALTER TABLE playgrounds OWNER TO senjun;
 
@@ -145,7 +144,7 @@ CREATE TABLE practice (
     CONSTRAINT fk_course_id FOREIGN KEY(course_id) REFERENCES courses(course_id)
 );
 
-CREATE UNIQUE INDEX unique_project_id ON practice(project_id);
+CREATE UNIQUE INDEX CONCURRENTLY unique_project_id ON practice(project_id);
 ALTER TABLE practice OWNER TO senjun;
 
 CREATE TABLE practice_progress (
@@ -156,6 +155,6 @@ CREATE TABLE practice_progress (
     attempts_count smallint DEFAULT 0 NOT NULL,
     CONSTRAINT fk_project_id FOREIGN KEY(project_id) REFERENCES practice(project_id)
 );
-CREATE UNIQUE INDEX unique_user_practice_id ON practice_progress(user_id, project_id);
+CREATE UNIQUE INDEX CONCURRENTLY unique_user_practice_id ON practice_progress(user_id, project_id);
 ALTER TABLE practice_progress ADD CONSTRAINT unique_user_practice_id UNIQUE USING INDEX unique_user_practice_id;
 ALTER TABLE practice_progress OWNER TO senjun;
