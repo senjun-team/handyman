@@ -2,8 +2,10 @@
 -- docker run --name postgresql -e POSTGRES_USER=postgres -e POSTGRES_PASSWORD=postgres -p 5432:5432 -v /data:/var/lib/postgresql/data -d postgres
 
 -- Databases, roles, enums, etc
-CREATE USER senjun WITH PASSWORD 'some_password';
-CREATE DATABASE senjun OWNER senjun;
+
+-- already done if used with container
+-- CREATE USER senjun WITH PASSWORD 'some_password';
+-- CREATE DATABASE senjun OWNER senjun;
 
 -- To connect to the created db:
 -- \c senjun
