@@ -225,7 +225,7 @@ def main(courses_dir: str, postgres_conn: str, migration_dir: Path) -> None:
         if migrations_files:
             with conn.cursor() as cursor:
                 for schema in migrations_files:
-                    if "0002_create_metrics_table.sql" in schema:
+                    if "0002_create_metrics_table.sql" in str(schema):
                         continue
                     logging.info(f"apply migration {schema}...")
                     init_schema(conn, schema)
