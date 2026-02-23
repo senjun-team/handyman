@@ -15,7 +15,7 @@ import (
 )
 
 const version = "1.0"
-const addrHandyman = "127.0.0.1:8080"
+const addrHandyman = "0.0.0.0:8080"
 
 const timeoutReplyToUser = 50 * time.Second
 
@@ -48,12 +48,23 @@ func main() {
 		}).Info("Using default path to courses. You can redefine it by passing as 1st argument")
 	}
 
-	internal.DB = internal.ConnectDb()
+	connStr := os.Getenv("POSTGRES_CONN_STR")
+	if connStr == "" {
+		panic("set POSTGRES_CONN_STR plz")
+	}
+	watchmanConnStr := os.Getenv("WATCHMAN_ADDR")
+	if watchmanConnStr == "" {
+		panic("set WATCHMAN_ADDR plz")
+	}
+
+	internal.DB = internal.ConnectDb(connStr)
 	defer internal.DB.Close()
 	internal.Logger.Info("DB is online, checked connection")
 
 	internal.WP = workerpool.New(12)
 	internal.Logger.Info("Created worker pool for DB deferred queries")
+
+	internal.BindWatchman(watchmanConnStr)
 
 	r := mux.NewRouter()
 	r.HandleFunc("/get_courses", internal.HandleGetCourses)

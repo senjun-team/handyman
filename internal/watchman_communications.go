@@ -13,9 +13,18 @@ import (
 	log "github.com/sirupsen/logrus"
 )
 
-const addrWatchman = "http://127.0.0.1:8000/check"
-const addrWatchmanPlayground = "http://127.0.0.1:8000/playground"
-const addrWatchmanPractice = "http://127.0.0.1:8000/practice"
+var addrWatchman = "http://127.0.0.1:8000/check"
+var addrWatchmanPlayground = "http://127.0.0.1:8000/playground"
+var addrWatchmanPractice = "http://127.0.0.1:8000/practice"
+
+// BindWatchman надо вызвать 1 раз в самом начале, чтобы установить корректный путь к watchman.
+// По-умолчанию - 127.0.0.1:8000
+func BindWatchman(address string) {
+	Logger.WithField("address", address).Info("bind watchman to address")
+	addrWatchman = address + "/check"
+	addrWatchmanPlayground = address + "/playground"
+	addrWatchmanPractice = address + "/practice"
+}
 
 type RunTaskResult struct {
 	StatusCode     int    `json:"status_code"` // 0 = ok, 1 = err running code, 2 = didn't pass tests, other = unexpected

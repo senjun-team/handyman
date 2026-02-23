@@ -6,6 +6,7 @@ After=network.target
 User=handyman
 Type=simple
 ExecStart=/usr/bin/handyman
+Environment="WATCHMAN_ADDR=http://127.0.0.1:8000" "POSTGRES_CONN_STR=postgresql://senjun:some_password@127.0.0.1:5432/senjun?sslmode=disable"
 Restart=on-failure
 RestartSec=3s
 MemoryMax=2G

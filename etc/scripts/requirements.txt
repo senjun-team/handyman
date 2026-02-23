@@ -40,3 +40,5 @@ urllib3==1.26.14
 wcmatch==8.4.1
 wcwidth==0.2.6
 xmltodict==0.13.0
+psycopg2==2.9.11
+

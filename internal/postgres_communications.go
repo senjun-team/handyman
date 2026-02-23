@@ -23,8 +23,6 @@ var DB *sql.DB
 
 var WP *workerpool.WorkerPool
 
-const connStr = "postgresql://senjun:some_password@127.0.0.1:5432/senjun?sslmode=disable"
-
 var Logger *log.Logger
 
 // --------------- METRICS
@@ -181,7 +179,7 @@ var countGetChapterOk = promauto.NewCounter(prometheus.CounterOpts{
 	Name: "handyman_get_chapter_ok",
 })
 
-func ConnectDb() *sql.DB {
+func ConnectDb(connStr string) *sql.DB {
 	db, err := sql.Open("postgres", connStr)
 	if err != nil {
 		Logger.WithFields(log.Fields{
